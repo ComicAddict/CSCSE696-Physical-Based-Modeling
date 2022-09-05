@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include <fstream>
 #include <string>
 #include <glad/glad.h>
@@ -6,7 +7,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
+#include <cmath>
 #include "shader.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -48,6 +49,12 @@ void processInput(GLFWwindow* window)
         camPos += camSpeed * camUp;
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         camPos -= camSpeed * camUp;
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 int main() {
@@ -139,20 +146,89 @@ int main() {
         glm::vec3(-1.3f,  1.0f, -1.5f)
     };
 
+    //create a sphere
+    std::vector<float> sphereVertices;
+    std::vector<float> sphereNormals;
+    std::vector<unsigned int> sphereIndices;
+    std::vector<int> lineIndices;
+    int stack = 32;
+    int sector = 64;
+    float radius = 1.0f;
+    const float PI = acos(-1);
+    glm::vec3 pos;
+    glm::vec3 n;
+    
+    float stackStep = PI / stack;
+    float sectorStep = 2 * PI / sector;
+    float a_stack, a_sector;
+    for (int i = 0; i <= stack; i++) {
+        a_stack = PI / 2 - i * stackStep;
+        n.z = sinf(a_stack);
+        for (int j = 0; j <= sector; j++) {
+            a_sector = j * sectorStep;
+            n.x = cosf(a_stack) * cosf(a_sector);
+            n.y = cosf(a_stack) * sinf(a_sector);
+            pos.x = radius * n.x;
+            pos.y = radius * n.y;
+            pos.z = radius * n.z;
+            sphereVertices.push_back(pos.x);
+            sphereVertices.push_back(pos.y);
+            sphereVertices.push_back(pos.z);
+            sphereNormals.push_back(n.x);
+            sphereNormals.push_back(n.y);
+            sphereNormals.push_back(n.z);
+        }
+    }
+
+    unsigned int k1, k2;
+    for (int i = 0; i < stack; i++) {
+        k1 = i * (sector + 1);
+        k2 = k1 + sector + 1;
+        for (int j = 0; j < sector; j++, k1++, k2++) {
+            if (i != 0) {
+                sphereIndices.push_back(k1);
+                sphereIndices.push_back(k2);
+                sphereIndices.push_back(k1+1);
+            }
+
+            if (i != (stack-1)) {
+                sphereIndices.push_back(k1+1);
+                sphereIndices.push_back(k2);
+                sphereIndices.push_back(k2 + 1);
+            }
+        }
+    }
+
+    printf("%i\n", sphereIndices.size());
+    printf("%i\n", sphereVertices.size());
+
     unsigned int VAO;
     glGenVertexArrays(1, &VAO);
 
-    unsigned int VBO;
-    glGenBuffers(1, &VBO);
+    unsigned int VBO_pos;
+    glGenBuffers(1, &VBO_pos);
+
+    unsigned int VBO_normal;
+    glGenBuffers(1, &VBO_normal);
+
+    unsigned int EBO;
+    glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(float), &sphereVertices[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3*sizeof(float)));
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
+    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(float), &sphereVertices[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereIndices.size()*sizeof(float), &sphereIndices[0], GL_STATIC_DRAW);
+    
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -161,7 +237,7 @@ int main() {
 
     sperspective.use();
 
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPointSize(10.0f);
 
     glEnable(GL_DEPTH_TEST);
     
@@ -182,27 +258,35 @@ int main() {
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
         sperspective.setMat4("view", view);
-
         glBindVertexArray(VAO);
+        /*
         for (unsigned int i = 0; i < 10; i++)
         {
-            // calculate the model matrix for each object and pass it to shader before drawing
-            glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+            glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, cubePositions[i]);
             float angle = 20.0f * i;
             model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
             sperspective.setMat4("model", model);
 
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
+            //glDrawArrays(GL_TRIANGLES, 0, 36);
+            glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
+        }*/
+        glm::mat4 model = glm::mat4(1.0f);
+        sperspective.setMat4("model", model);
+        glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
         
+        //TODO: draw the cube
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
     glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &VBO_pos);
+    glDeleteBuffers(1, &VBO_normal);
 
     glfwTerminate();
 
