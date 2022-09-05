@@ -80,12 +80,6 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    const char *vertexShaderSource = "#version 330 core\n"
-        "layout(location = 0) in vec3 aPos;\n"
-        "void main() {\n"
-            "gl_Position = vec4(aPos, 1.0);\n"
-        "}\0";
-
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader perspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
 
