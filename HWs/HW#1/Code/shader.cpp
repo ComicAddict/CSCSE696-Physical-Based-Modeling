@@ -6,7 +6,8 @@ Shader::Shader(const char* vertexPath, const char* fragPath) {
 	std::string fragCode;
 	std::ifstream vertexShaderFile;
 	std::ifstream fragShaderFile;
-
+    vertexShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    fragShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 	try {
 		vertexShaderFile.open(vertexPath);
 		fragShaderFile.open(fragPath);
@@ -54,7 +55,7 @@ Shader::Shader(const char* vertexPath, const char* fragPath) {
         std::cout << "ERROR: Shader Fragment Compilation Failed\n" << errLog << std::endl;
     }
 
-    Shader::ID = glCreateProgram();
+    ID = glCreateProgram();
     glAttachShader(ID, vertexShader);
     glAttachShader(ID, fragShader);
     glLinkProgram(ID);

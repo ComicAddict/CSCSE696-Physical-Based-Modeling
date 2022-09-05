@@ -3,6 +3,9 @@
 #include <string>
 #include <glad/glad.h>
 #include <glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "shader.h"
 
@@ -83,27 +86,33 @@ int main() {
             "gl_Position = vec4(aPos, 1.0);\n"
         "}\0";
 
-    // TODO: read shader from fil
+    Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
+    Shader perspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
 
-    Shader primitiveShader("./shaders/vertex_shader_prim.glsl","./shaders/fragment_shader_prim.glsl");
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glm::mat4 view = glm::mat4(1.0f);
+    view = glm::translate(view, glm::vec3(0.0f, 0.0f, -13.0f));
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f/600.0f, .1f, 100.0f);
+
+    glEnable(GL_DEPTH_TEST);
 
     while (!glfwWindowShouldClose(window))
     {
         processInput(window);
         glClearColor(.2f, .3f, .3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        primitiveShader.use();
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        int viewLoc = glGetUniformLocation(perspective.ID, "view");
+        int projLoc = glGetUniformLocation(perspective.ID, "projection");
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        perspective.use();
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragShader);
 
     glfwTerminate();
 
