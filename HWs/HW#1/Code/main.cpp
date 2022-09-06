@@ -2,6 +2,11 @@
 #include <vector>
 #include <fstream>
 #include <string>
+
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
+
 #include <glad/glad.h>
 #include <glfw3.h>
 #include <glm/glm.hpp>
@@ -14,10 +19,12 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int modsdouble);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-
+void RenderUI();
 glm::vec3 camPos = glm::vec3(3.0f, 3.0f, 0.0f);
 glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 camUp = glm::vec3(0.0f, 0.0f, 1.0f);
+
+bool focused = false;
 
 bool firstMouse = true;
 float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
@@ -86,7 +93,6 @@ int main() {
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
 
-    // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     float vertices[] = {
@@ -198,10 +204,7 @@ int main() {
             }
         }
     }
-
-    printf("%i\n", sphereIndices.size());
-    printf("%i\n", sphereVertices.size());
-
+    
     unsigned int VAO_sphere;
     glGenVertexArrays(1, &VAO_sphere);
 
@@ -210,8 +213,6 @@ int main() {
 
     unsigned int VBO_normal;
     glGenBuffers(1, &VBO_normal);
-
-
 
     unsigned int EBO;
     glGenBuffers(1, &EBO);
@@ -279,8 +280,17 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
     
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)800.0f / (float)600.0f, 0.1f, 100.0f);
-    sperspective.setMat4("projection", projection);
+    
+    int width, height;
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     while (!glfwWindowShouldClose(window))
     {   
@@ -292,10 +302,23 @@ int main() {
         glClearColor(.2f, .3f, .3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        //start of imgui init stuff
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        //end of imgui init stuff
+
         sperspective.use();
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
         sperspective.setMat4("view", view);
+
+        glfwGetWindowSize(window, &width, &height);
+
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 100.0f);
+        sperspective.setMat4("projection", projection);
+
         glBindVertexArray(VAO_sphere);
         /*
         for (unsigned int i = 0; i < 10; i++)
@@ -310,21 +333,30 @@ int main() {
             glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
         }*/
         glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(sin(glfwGetTime())));
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
-        
-        glBindVertexArray(VAO_cube);
-        //TODO: draw the cube
-        GLint polygonMode;
-        glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
 
+        model = glm::mat4(1.0f);
+        sperspective.setMat4("model", model);
+        glBindVertexArray(VAO_cube);
         glDrawArrays(GL_LINE_STRIP, 0, 16);
 
         //glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
+        // all drawings done lets do some imgui stuff
+        
+        RenderUI();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glDeleteVertexArrays(1, &VAO_sphere);
     glDeleteBuffers(1, &VBO_pos);
@@ -342,47 +374,57 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
+    if (focused) {
 
-    if (firstMouse)
-    {
+        float xpos = static_cast<float>(xposIn);
+        float ypos = static_cast<float>(yposIn);
+
+        if (firstMouse)
+        {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
+        float xoffset = xpos - lastX;
+        float yoffset = ypos - lastY; // reversed since y-coordinates go from bottom to top
         lastX = xpos;
         lastY = ypos;
-        firstMouse = false;
+
+        float sensitivity = 0.1f; // change this value to your liking
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw -= xoffset;
+        pitch -= yoffset;
+
+        // make sure that when pitch is out of bounds, screen doesn't get flipped
+        if (pitch > 89.0f)
+            pitch = 89.0f;
+        if (pitch < -89.0f)
+            pitch = -89.0f;
+
+        glm::vec3 front;
+        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.y = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.z = sin(glm::radians(pitch));
+        camFront = glm::normalize(front);
+
     }
-
-    float xoffset = xpos - lastX;
-    float yoffset = ypos - lastY; // reversed since y-coordinates go from bottom to top
-    lastX = xpos;
-    lastY = ypos;
-
-    float sensitivity = 0.1f; // change this value to your liking
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw -= xoffset;
-    pitch -= yoffset;
-
-    // make sure that when pitch is out of bounds, screen doesn't get flipped
-    if (pitch > 89.0f)
-        pitch = 89.0f;
-    if (pitch < -89.0f)
-        pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front.y = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front.z = sin(glm::radians(pitch));
-    camFront = glm::normalize(front);
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int modsdouble)
 {
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS){
+        
+    }
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        if(focused)
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        else
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        focused = !focused;
+    }
 }
 
 
@@ -393,4 +435,13 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
         fov = 1.0f;
     if (fov > 45.0f)
         fov = 45.0f;
+}
+
+void RenderUI() {
+
+    ImGui::Begin("Variables");
+    ImGui::Text("Hello There!");
+    
+
+    ImGui::End();
 }
