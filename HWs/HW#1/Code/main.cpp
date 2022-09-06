@@ -14,6 +14,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
 #include "shader.h"
+#include "Sphere.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -152,59 +153,10 @@ int main() {
         glm::vec3(-1.3f,  1.0f, -1.5f)
     };
 
-    //create a sphere
-    std::vector<float> sphereVertices;
-    std::vector<float> sphereNormals;
-    std::vector<unsigned int> sphereIndices;
-    std::vector<int> lineIndices;
-    int stack = 32;
-    int sector = 64;
-    float radius = 1.0f;
-    const float PI = acos(-1);
-    glm::vec3 pos;
-    glm::vec3 n;
-    
-    float stackStep = PI / stack;
-    float sectorStep = 2 * PI / sector;
-    float a_stack, a_sector;
-    for (int i = 0; i <= stack; i++) {
-        a_stack = PI / 2 - i * stackStep;
-        n.z = sinf(a_stack);
-        for (int j = 0; j <= sector; j++) {
-            a_sector = j * sectorStep;
-            n.x = cosf(a_stack) * cosf(a_sector);
-            n.y = cosf(a_stack) * sinf(a_sector);
-            pos.x = radius * n.x;
-            pos.y = radius * n.y;
-            pos.z = radius * n.z;
-            sphereVertices.push_back(pos.x);
-            sphereVertices.push_back(pos.y);
-            sphereVertices.push_back(pos.z);
-            sphereNormals.push_back(n.x);
-            sphereNormals.push_back(n.y);
-            sphereNormals.push_back(n.z);
-        }
-    }
+    int dims[2] = { 32, 16 };
+    float radius = .5f;
+    Sphere ball = Sphere(dims[0], dims[1], true, radius);
 
-    unsigned int k1, k2;
-    for (int i = 0; i < stack; i++) {
-        k1 = i * (sector + 1);
-        k2 = k1 + sector + 1;
-        for (int j = 0; j < sector; j++, k1++, k2++) {
-            if (i != 0) {
-                sphereIndices.push_back(k1);
-                sphereIndices.push_back(k2);
-                sphereIndices.push_back(k1+1);
-            }
-
-            if (i != (stack-1)) {
-                sphereIndices.push_back(k1+1);
-                sphereIndices.push_back(k2);
-                sphereIndices.push_back(k2 + 1);
-            }
-        }
-    }
-    
     unsigned int VAO_sphere;
     glGenVertexArrays(1, &VAO_sphere);
 
@@ -218,19 +170,19 @@ int main() {
     glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO_sphere);
-
+    
     glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(float), &sphereVertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(float), &sphereVertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereIndices.size()*sizeof(float), &sphereIndices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size()*sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
     
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -335,7 +287,7 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(sin(glfwGetTime())));
         sperspective.setMat4("model", model);
-        glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, ball.indices.size(), GL_UNSIGNED_INT, 0);
 
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
@@ -346,6 +298,35 @@ int main() {
         // all drawings done lets do some imgui stuff
         
         RenderUI();
+        ImGui::Begin("Sphere Settings");
+        bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
+        bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
+
+        if (sliderDim || sliderRad) {
+            ball.setDims(dims[0], dims[1], radius);
+            glGenBuffers(1, &VBO_pos);
+
+            glGenBuffers(1, &VBO_normal);
+
+            glGenBuffers(1, &EBO);
+
+            glBindVertexArray(VAO_sphere);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
+            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
+        }
+
+        ImGui::End();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
