@@ -202,8 +202,8 @@ int main() {
     printf("%i\n", sphereIndices.size());
     printf("%i\n", sphereVertices.size());
 
-    unsigned int VAO;
-    glGenVertexArrays(1, &VAO);
+    unsigned int VAO_sphere;
+    glGenVertexArrays(1, &VAO_sphere);
 
     unsigned int VBO_pos;
     glGenBuffers(1, &VBO_pos);
@@ -211,10 +211,12 @@ int main() {
     unsigned int VBO_normal;
     glGenBuffers(1, &VBO_normal);
 
+
+
     unsigned int EBO;
     glGenBuffers(1, &EBO);
 
-    glBindVertexArray(VAO);
+    glBindVertexArray(VAO_sphere);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
     glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(float), &sphereVertices[0], GL_STATIC_DRAW);
@@ -232,12 +234,48 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    unsigned int VAO_cube;
+    glGenVertexArrays(1, &VAO_cube);
+
+    unsigned int VBO_cube;
+    glGenBuffers(1, &VBO_cube);
+    
+    glBindVertexArray(VAO_cube);
+
+    
+    const float cubeSize = 5.0f;
+    float  cubevertices[] = {
+        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+    };
+    printf("%d", sizeof(cubevertices));
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
 
     sperspective.use();
 
     glPointSize(10.0f);
+    glLineWidth(6.0f);
 
     glEnable(GL_DEPTH_TEST);
     
@@ -258,7 +296,7 @@ int main() {
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
         sperspective.setMat4("view", view);
-        glBindVertexArray(VAO);
+        glBindVertexArray(VAO_sphere);
         /*
         for (unsigned int i = 0; i < 10; i++)
         {
@@ -275,16 +313,20 @@ int main() {
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
         
+        glBindVertexArray(VAO_cube);
         //TODO: draw the cube
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        
+        GLint polygonMode;
+        glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
 
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glDrawArrays(GL_LINE_STRIP, 0, 16);
+
+        //glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &VAO);
+    glDeleteVertexArrays(1, &VAO_sphere);
     glDeleteBuffers(1, &VBO_pos);
     glDeleteBuffers(1, &VBO_normal);
 
