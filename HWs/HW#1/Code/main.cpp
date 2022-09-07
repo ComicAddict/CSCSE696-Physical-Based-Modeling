@@ -8,13 +8,15 @@
 #include <imgui/imgui_impl_opengl3.h>
 
 #include <glad/glad.h>
-#include <glfw3.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
 #include "shader.h"
 #include "Sphere.h"
+
+int main();
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -37,7 +39,27 @@ float fov = 45.0f;
 float deltaTimeFrame = .0f;
 float lastFrame = .0f;
 
+struct state{
+    glm::vec3 position;
+    glm::vec3 velocity;
+    glm::vec3 wind;
+};
 
+void setAcceleration(state& const curState, glm::vec3& const acc) {
+
+}
+
+void integrate(state& const curState, state& const nextState, glm::vec3& const acc, const float &timestep) {
+
+}
+
+bool checkCollision(state & const curState) {
+    return false;
+}
+
+void findFraction(state & const curState, state & const nextState, float & fraction) {
+
+}
 
 void processInput(GLFWwindow* window)
 {
@@ -222,18 +244,25 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
-    Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
+    Shader primitiveShader("../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
+    Shader sperspective("../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/vert.glsl", "../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/frag.glsl");
 
     sperspective.use();
 
-    glPointSize(10.0f);
-    glLineWidth(6.0f);
+    float pointSize = 10.f;
+    float lineSize = 6.0f;
+
+    glPointSize(pointSize);
+    glLineWidth(lineSize);
 
     glEnable(GL_DEPTH_TEST);
     
     
     int width, height;
+    float h = 0.02;
+    float f;
+    state curState;
+    state nextState;
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -253,6 +282,8 @@ int main() {
 
         glClearColor(.2f, .3f, .3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glPointSize(pointSize);
+        glLineWidth(lineSize);
 
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
@@ -302,6 +333,26 @@ int main() {
         bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
         bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
 
+        ImGui::End();
+
+        ImGui::Begin("Render Setting");
+        ImGui::SliderFloat("Point Size", &pointSize, .01f, 10.0f);
+        ImGui::SliderFloat("Line Size", &lineSize, .01f, 10.0f);
+        ImGui::End();
+
+        ImGui::Begin("Simulation Setting");
+        ImGui::SliderFloat("Timestep", &h, .01f, 1.0f);
+        ImGui::End();
+
+        //TODO: Simulation Part
+        float timestep = h;
+        glm::vec3 acc_ball;
+        setAcceleration(curState, acc_ball);
+        integrate(curState, nextState, acc_ball, timestep);
+        if (checkCollision(curState)) {
+            findFraction(curState, nextState, f);
+        }
+
         if (sliderDim || sliderRad) {
             ball.setDims(dims[0], dims[1], radius);
             glGenBuffers(1, &VBO_pos);
@@ -325,8 +376,7 @@ int main() {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
         }
-
-        ImGui::End();
+        
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
