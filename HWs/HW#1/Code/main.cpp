@@ -23,7 +23,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int modsdouble);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void RenderUI();
-glm::vec3 camPos = glm::vec3(3.0f, 3.0f, 0.0f);
+glm::vec3 camPos = glm::vec3(5.0f, 5.0f, 0.0f);
 glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 camUp = glm::vec3(0.0f, 0.0f, 1.0f);
 
@@ -38,27 +38,90 @@ float fov = 45.0f;
 
 float deltaTimeFrame = .0f;
 float lastFrame = .0f;
+bool timeToSimulate = true;
 
 struct state{
+    float m;
     glm::vec3 position;
     glm::vec3 velocity;
+    float windFactor;
     glm::vec3 wind;
+    float airResistanceFactor;
+    glm::vec3 gravity;
 };
 
+void setInitConditions(state& former, state& init) {
+    former = init;
+}
+
 void setAcceleration(state& const curState, glm::vec3& const acc) {
-
+    glm::vec3 gravity = curState.m * curState.gravity;
+    curState.wind = curState.windFactor * curState.velocity * curState.velocity;
+    glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity * curState.velocity;
+    glm::vec3 totalForce = gravity + curState.wind + airResistance;
+    acc = totalForce / curState.m;
 }
 
-void integrate(state& const curState, state& const nextState, glm::vec3& const acc, const float &timestep) {
-
+void integrate(state& const curState, state& const nextState, glm::vec3& const acc, const float &h) {
+    nextState.m = curState.m;
+    nextState.airResistanceFactor = curState.airResistanceFactor;
+    nextState.gravity = curState.gravity;
+    nextState.wind = curState.wind;
+    nextState.windFactor = curState.windFactor;
+    nextState.velocity = curState.velocity + acc;
+    nextState.position = curState.position + curState.velocity;
 }
 
-bool checkCollision(state & const curState) {
-    return false;
+bool checkCollision(state & const curState, state & nextState, const float radius, const float cubeSize, glm::vec3 &hitNormal) {
+    float hitPoint = (cubeSize / 2) - radius;
+    if (nextState.position.x > hitPoint) {
+        hitNormal = glm::vec3(-1.0, 0.0, 0.0);
+    } 
+    else if (nextState.position.x < -hitPoint) {
+        hitNormal = glm::vec3(1.0, 0.0, 0.0);
+    } 
+    else if (nextState.position.y > hitPoint) {
+        hitNormal = glm::vec3(0.0, -1.0, 0.0);
+    }
+    else if (nextState.position.y < -hitPoint) {
+        hitNormal = glm::vec3(0.0, 1.0, 0.0);
+    }
+    else if (nextState.position.z > hitPoint) {
+        hitNormal = glm::vec3(0.0, 0.0, -1.0);
+    }
+    else if (nextState.position.z < -hitPoint) {
+        hitNormal = glm::vec3(0.0, 0.0, 1.0);
+    }
+    else { return false; }
+    return true;
 }
 
-void findFraction(state & const curState, state & const nextState, float & fraction) {
+void findFraction(state& const curState, state& const nextState, const float radius, const float cubeSize, float& fraction) {
+    float hitPoint = (cubeSize / 2) - radius;
+    float curHeight;
+    if (abs(nextState.position.x) > hitPoint) {
+        curHeight = curState.position.x + cubeSize / 2;
+        fraction = curHeight / (curState.position.x - nextState.position.x);
+    }
+    else if (abs(nextState.position.y) > hitPoint) {
+        curHeight = curState.position.y + cubeSize / 2;
+        fraction = curHeight / (curState.position.y - nextState.position.y);
+    } 
+    else if (abs(nextState.position.z) > hitPoint) {
+        curHeight = curState.position.z + cubeSize / 2;
+        fraction = curHeight / (curState.position.z - nextState.position.z);
+    }
+}
 
+void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
+    float elas = 0.5f;
+    float mu = 0.2f;
+    nextState.position = collState.position;
+    glm::vec3 VN = -hitNormal * glm::dot(collState.velocity, hitNormal);
+    glm::vec3 VT = collState.velocity - VN;
+    glm::vec3 nextVT = VT - VT * fmin(mu*glm::length(VN), glm::length(VT));
+    glm::vec3 nextVN = -elas * VN;
+    nextState.velocity = nextVT + nextVN;
 }
 
 void processInput(GLFWwindow* window)
@@ -110,7 +173,6 @@ int main() {
         return -1;
     }
 
-    glViewport(0, 0, 800, 600);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
@@ -118,63 +180,7 @@ int main() {
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    float vertices[] = {
-    -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-     0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-     0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-     0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-
-    -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-     0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-
-    -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-
-     0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-     0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-     0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-     0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-     0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
-    };
-
-    glm::vec3 cubePositions[] = {
-        glm::vec3(0.0f,  0.0f,  0.0f),
-        glm::vec3(2.0f,  5.0f, -15.0f),
-        glm::vec3(-1.5f, -2.2f, -2.5f),
-        glm::vec3(-3.8f, -2.0f, -12.3f),
-        glm::vec3(2.4f, -0.4f, -3.5f),
-        glm::vec3(-1.7f,  3.0f, -7.5f),
-        glm::vec3(1.3f, -2.0f, -2.5f),
-        glm::vec3(1.5f,  2.0f, -2.5f),
-        glm::vec3(1.5f,  0.2f, -1.5f),
-        glm::vec3(-1.3f,  1.0f, -1.5f)
-    };
-
+    glViewport(0, 0, 800, 600);
     int dims[2] = { 32, 16 };
     float radius = .5f;
     Sphere ball = Sphere(dims[0], dims[1], true, radius);
@@ -218,7 +224,7 @@ int main() {
     glBindVertexArray(VAO_cube);
 
     
-    const float cubeSize = 5.0f;
+    const float cubeSize = 40.0f;
     float  cubevertices[] = {
         cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
         cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
@@ -244,8 +250,8 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    Shader primitiveShader("../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
-    Shader sperspective("../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/vert.glsl", "../../../CSCSE696-Physical-Based-Modeling/HWs/HW#1/Code/shaders/frag.glsl");
+    Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
+    Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
 
     sperspective.use();
 
@@ -261,9 +267,12 @@ int main() {
     int width, height;
     float h = 0.02;
     float f;
+    float t = 0.0;
+    float t_max = 120;
     state curState;
     state nextState;
-
+    state collState;
+    
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -272,6 +281,17 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    state init;
+    init.m = 1.0f;
+    init.airResistanceFactor = 0;
+    init.gravity = glm::vec3(0.0, 0.0, -1.0);
+    init.position = glm::vec3(0.0, 0.0, 5.0);
+    init.velocity = glm::vec3(0.0, 0.0, 0.0);
+    init.wind = glm::vec3(0.0, 0.0, 0.0);
+    init.windFactor = 0;
+
+    float timestep = h;
+    setInitConditions(curState, init);
 
     while (!glfwWindowShouldClose(window))
     {   
@@ -282,8 +302,6 @@ int main() {
 
         glClearColor(.2f, .3f, .3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glPointSize(pointSize);
-        glLineWidth(lineSize);
 
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
@@ -303,20 +321,8 @@ int main() {
         sperspective.setMat4("projection", projection);
 
         glBindVertexArray(VAO_sphere);
-        /*
-        for (unsigned int i = 0; i < 10; i++)
-        {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, cubePositions[i]);
-            float angle = 20.0f * i;
-            model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-            sperspective.setMat4("model", model);
-
-            //glDrawArrays(GL_TRIANGLES, 0, 36);
-            glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
-        }*/
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(sin(glfwGetTime())));
+        model = glm::translate(model, curState.velocity);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, ball.indices.size(), GL_UNSIGNED_INT, 0);
 
@@ -336,8 +342,8 @@ int main() {
         ImGui::End();
 
         ImGui::Begin("Render Setting");
-        ImGui::SliderFloat("Point Size", &pointSize, .01f, 10.0f);
-        ImGui::SliderFloat("Line Size", &lineSize, .01f, 10.0f);
+        bool sliderPS = ImGui::SliderFloat("Point Size", &pointSize, .01f, 10.0f);
+        bool sliderLS = ImGui::SliderFloat("Line Size", &lineSize, .01f, 10.0f);
         ImGui::End();
 
         ImGui::Begin("Simulation Setting");
@@ -345,12 +351,24 @@ int main() {
         ImGui::End();
 
         //TODO: Simulation Part
-        float timestep = h;
-        glm::vec3 acc_ball;
-        setAcceleration(curState, acc_ball);
-        integrate(curState, nextState, acc_ball, timestep);
-        if (checkCollision(curState)) {
-            findFraction(curState, nextState, f);
+        if (timeToSimulate) {
+            printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
+            glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
+            setAcceleration(curState, acc_ball);
+            integrate(curState, nextState, acc_ball, timestep);
+            glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
+            if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
+                findFraction(curState, nextState, radius, cubeSize, f);
+                timestep = f * timestep;
+                integrate(curState, collState, acc_ball, timestep);
+                printf("There is a collision at: %f,%f,%f\n", collState.position.x, collState.position.y, collState.position.z);
+                collResponse(collState, nextState, hitNormal);
+                t += timestep;
+            }
+            else {
+                t += timestep;
+            }
+            curState = nextState;
         }
 
         if (sliderDim || sliderRad) {
@@ -377,6 +395,12 @@ int main() {
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
         }
         
+        if (sliderPS) {
+            glPointSize(pointSize);
+        }
+        if (sliderLS) {
+            glLineWidth(lineSize);
+        }
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -422,7 +446,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         lastX = xpos;
         lastY = ypos;
 
-        float sensitivity = 0.1f; // change this value to your liking
+        float sensitivity = 0.01f; // change this value to your liking
         xoffset *= sensitivity;
         yoffset *= sensitivity;
 
