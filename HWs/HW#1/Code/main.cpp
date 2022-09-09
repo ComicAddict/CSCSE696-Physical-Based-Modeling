@@ -26,7 +26,7 @@ void RenderUI();
 glm::vec3 camPos = glm::vec3(5.0f, 5.0f, 0.0f);
 glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 camUp = glm::vec3(0.0f, 0.0f, 1.0f);
-
+float sensitivity = 0.1f;
 bool focused = false;
 
 bool firstMouse = true;
@@ -50,8 +50,8 @@ struct state{
     glm::vec3 gravity;
 };
 
-void setInitConditions(state& former, state& init) {
-    former = init;
+void setInitConditions(state& cur, state& init) {
+    cur = init;
 }
 
 void setAcceleration(state& const curState, glm::vec3& const acc) {
@@ -115,12 +115,12 @@ void findFraction(state& const curState, state& const nextState, const float rad
 
 void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
     float elas = 1.0f;
-    float mu = 0.2f;
+    float mu = 0.0f;
     nextState.position = collState.position;
-    glm::vec3 VN = -hitNormal * glm::dot(collState.velocity, hitNormal);
+    glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
     printf("%f,%f,%f\n", VN.x, VN.y, VN.z);
     glm::vec3 VT = collState.velocity - VN;
-    glm::vec3 nextVT = VT - VT * fmin(mu*glm::length(VN), glm::length(VT));
+    glm::vec3 nextVT = VT;//-glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
     nextState.velocity = nextVT + nextVN;
 }
@@ -155,7 +155,7 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    float camSpeed = static_cast<float>(2.5 * deltaTimeFrame);
+    float camSpeed = static_cast<float>(sensitivity * deltaTimeFrame);
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camPos += camSpeed * camFront;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -168,11 +168,11 @@ void processInput(GLFWwindow* window)
         camPos += camSpeed * camUp;
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         camPos -= camSpeed * camUp;
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
         glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
@@ -253,7 +253,6 @@ int main() {
     float cubeSize = 10.0f;
     float  cubevertices[48];
     generateWireframeCube(cubeSize, cubevertices);
-    printf("%d", sizeof(cubevertices));
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
@@ -291,6 +290,8 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    
     state init;
     init.m = 1.0f;
     init.airResistanceFactor = 0;
@@ -365,7 +366,20 @@ int main() {
         if (ImGui::Button("Step Simulation")) {
             stepSim = true;
         }
+        if (ImGui::Button("Reset")) {
+            setInitConditions(curState, init);
+        }
+        ImGui::InputFloat3("Gravity", glm::value_ptr(curState.gravity));
+        ImGui::InputFloat3("Wind", glm::value_ptr(curState.wind));
+        ImGui::InputFloat("Wind Factor", &curState.windFactor);
         ImGui::SliderFloat("Timestep", &h, .01f, 1.0f);
+        ImGui::Text("Initial Conditions");
+        ImGui::InputFloat3("Gravity", glm::value_ptr(init.gravity));
+        ImGui::InputFloat3("Position", glm::value_ptr(init.position));
+        ImGui::InputFloat3("Velocity", glm::value_ptr(init.velocity));
+        ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
+        ImGui::InputFloat("Wind Factor", &init.windFactor);
+
         ImGui::End();
 
         //TODO: Simulation Part
@@ -452,6 +466,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
+
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
     if (focused) {
@@ -471,9 +486,9 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         lastX = xpos;
         lastY = ypos;
 
-        float sensitivity = 0.1f; // change this value to your liking
-        xoffset *= sensitivity;
-        yoffset *= sensitivity;
+        float mouseSens = 0.2;
+        xoffset *= mouseSens;
+        yoffset *= mouseSens;
 
         yaw -= xoffset;
         pitch -= yoffset;
@@ -509,7 +524,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int modsd
 
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
+{   
+    
+    sensitivity += 0.2 * yoffset;
+    if (sensitivity < 0) {
+        sensitivity = 0.01;
+    }
+
     fov -= (float)yoffset;
     if (fov < 1.0f)
         fov = 1.0f;
