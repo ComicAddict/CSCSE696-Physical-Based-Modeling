@@ -38,7 +38,7 @@ float fov = 45.0f;
 
 float deltaTimeFrame = .0f;
 float lastFrame = .0f;
-bool timeToSimulate = true;
+bool timeToSimulate = false;
 
 struct state{
     float m;
@@ -68,8 +68,8 @@ void integrate(state& const curState, state& const nextState, glm::vec3& const a
     nextState.gravity = curState.gravity;
     nextState.wind = curState.wind;
     nextState.windFactor = curState.windFactor;
-    nextState.velocity = curState.velocity + acc;
-    nextState.position = curState.position + curState.velocity;
+    nextState.velocity = curState.velocity + acc*h;
+    nextState.position = curState.position + curState.velocity*h;
 }
 
 bool checkCollision(state & const curState, state & nextState, const float radius, const float cubeSize, glm::vec3 &hitNormal) {
@@ -100,28 +100,54 @@ void findFraction(state& const curState, state& const nextState, const float rad
     float hitPoint = (cubeSize / 2) - radius;
     float curHeight;
     if (abs(nextState.position.x) > hitPoint) {
-        curHeight = curState.position.x + cubeSize / 2;
-        fraction = curHeight / (curState.position.x - nextState.position.x);
+        curHeight = - hitPoint - curState.position.x;
+        fraction = curHeight / (nextState.position.x - curState.position.x);
     }
     else if (abs(nextState.position.y) > hitPoint) {
-        curHeight = curState.position.y + cubeSize / 2;
-        fraction = curHeight / (curState.position.y - nextState.position.y);
+        curHeight = - hitPoint - curState.position.y;
+        fraction = curHeight / (nextState.position.y - curState.position.y);
     } 
     else if (abs(nextState.position.z) > hitPoint) {
-        curHeight = curState.position.z + cubeSize / 2;
-        fraction = curHeight / (curState.position.z - nextState.position.z);
+        curHeight = - hitPoint - curState.position.z;
+        fraction = curHeight / (nextState.position.z - curState.position.z);
     }
 }
 
 void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
-    float elas = 0.5f;
+    float elas = 1.0f;
     float mu = 0.2f;
     nextState.position = collState.position;
     glm::vec3 VN = -hitNormal * glm::dot(collState.velocity, hitNormal);
+    printf("%f,%f,%f\n", VN.x, VN.y, VN.z);
     glm::vec3 VT = collState.velocity - VN;
     glm::vec3 nextVT = VT - VT * fmin(mu*glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
     nextState.velocity = nextVT + nextVN;
+}
+
+void generateWireframeCube(float cubeSize, float *vertices) {
+    float cubeVertices[] = {
+        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
+        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
+        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
+    };
+    for (int i = 0; i < 48; i++) {
+        vertices[i] = cubeVertices[i];
+    }
+    vertices = cubeVertices;
 }
 
 void processInput(GLFWwindow* window)
@@ -224,25 +250,9 @@ int main() {
     glBindVertexArray(VAO_cube);
 
     
-    const float cubeSize = 40.0f;
-    float  cubevertices[] = {
-        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
-        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
-        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
-        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
-        cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
-        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
-        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
-        -cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
-        -cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
-        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
-        -cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
-        -cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
-        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
-        cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
-        cubeSize / 2.0f, -cubeSize / 2.0f, -cubeSize / 2.0f,
-        cubeSize / 2.0f, cubeSize / 2.0f, -cubeSize / 2.0f,
-    };
+    float cubeSize = 10.0f;
+    float  cubevertices[48];
+    generateWireframeCube(cubeSize, cubevertices);
     printf("%d", sizeof(cubevertices));
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
@@ -265,7 +275,7 @@ int main() {
     
     
     int width, height;
-    float h = 0.02;
+    float h = 0.01;
     float f;
     float t = 0.0;
     float t_max = 120;
@@ -285,16 +295,17 @@ int main() {
     init.m = 1.0f;
     init.airResistanceFactor = 0;
     init.gravity = glm::vec3(0.0, 0.0, -1.0);
-    init.position = glm::vec3(0.0, 0.0, 5.0);
+    init.position = glm::vec3(0.0, 0.0, 3.0);
     init.velocity = glm::vec3(0.0, 0.0, 0.0);
     init.wind = glm::vec3(0.0, 0.0, 0.0);
     init.windFactor = 0;
 
     float timestep = h;
     setInitConditions(curState, init);
+    bool stepSim = false;
 
     while (!glfwWindowShouldClose(window))
-    {   
+    {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTimeFrame = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -322,7 +333,7 @@ int main() {
 
         glBindVertexArray(VAO_sphere);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, curState.velocity);
+        model = glm::translate(model, curState.position);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, ball.indices.size(), GL_UNSIGNED_INT, 0);
 
@@ -333,12 +344,12 @@ int main() {
 
         //glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
         // all drawings done lets do some imgui stuff
-        
+
         RenderUI();
-        ImGui::Begin("Sphere Settings");
+        ImGui::Begin("Object Settings");
         bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
         bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
-
+        bool sliderCube = ImGui::SliderFloat("Cube Size", &cubeSize, .01f, 20.f);
         ImGui::End();
 
         ImGui::Begin("Render Setting");
@@ -347,11 +358,18 @@ int main() {
         ImGui::End();
 
         ImGui::Begin("Simulation Setting");
+        if (ImGui::Button("Start/Pause Simulation")) {
+            timeToSimulate = !timeToSimulate;
+            stepSim = false;
+        }
+        if (ImGui::Button("Step Simulation")) {
+            stepSim = true;
+        }
         ImGui::SliderFloat("Timestep", &h, .01f, 1.0f);
         ImGui::End();
 
         //TODO: Simulation Part
-        if (timeToSimulate) {
+        if (timeToSimulate || stepSim) {
             printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
             setAcceleration(curState, acc_ball);
@@ -359,9 +377,10 @@ int main() {
             glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
             if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
                 findFraction(curState, nextState, radius, cubeSize, f);
-                timestep = f * timestep;
+                timestep = f * h;
                 integrate(curState, collState, acc_ball, timestep);
-                printf("There is a collision at: %f,%f,%f\n", collState.position.x, collState.position.y, collState.position.z);
+                printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
+                
                 collResponse(collState, nextState, hitNormal);
                 t += timestep;
             }
@@ -369,6 +388,7 @@ int main() {
                 t += timestep;
             }
             curState = nextState;
+            stepSim = false;
         }
 
         if (sliderDim || sliderRad) {
@@ -394,6 +414,11 @@ int main() {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
         }
+
+        if (sliderCube) {
+            generateWireframeCube(cubeSize, cubevertices);
+        }
+
         
         if (sliderPS) {
             glPointSize(pointSize);
@@ -446,7 +471,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         lastX = xpos;
         lastY = ypos;
 
-        float sensitivity = 0.01f; // change this value to your liking
+        float sensitivity = 0.1f; // change this value to your liking
         xoffset *= sensitivity;
         yoffset *= sensitivity;
 
