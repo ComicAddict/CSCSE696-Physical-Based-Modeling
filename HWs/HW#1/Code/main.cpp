@@ -54,7 +54,7 @@ void setInitConditions(state& cur, state& init) {
     cur = init;
 }
 
-void setAcceleration(state& const curState, glm::vec3& const acc) {
+void setAcceleration(state& curState, glm::vec3& acc) {
     glm::vec3 gravity = curState.m * curState.gravity;
     curState.wind = curState.windFactor * curState.velocity * curState.velocity;
     glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity * curState.velocity;
@@ -62,7 +62,7 @@ void setAcceleration(state& const curState, glm::vec3& const acc) {
     acc = totalForce / curState.m;
 }
 
-void integrate(state& const curState, state& const nextState, glm::vec3& const acc, const float &h) {
+void integrate(state& curState, state& nextState, glm::vec3& acc, float &h) {
     nextState.m = curState.m;
     nextState.airResistanceFactor = curState.airResistanceFactor;
     nextState.gravity = curState.gravity;
@@ -72,7 +72,7 @@ void integrate(state& const curState, state& const nextState, glm::vec3& const a
     nextState.position = curState.position + curState.velocity*h;
 }
 
-bool checkCollision(state & const curState, state & nextState, const float radius, const float cubeSize, glm::vec3 &hitNormal) {
+bool checkCollision(state & curState, state & nextState, const float radius, const float cubeSize, glm::vec3 &hitNormal) {
     float hitPoint = (cubeSize / 2) - radius;
     if (nextState.position.x > hitPoint) {
         hitNormal = glm::vec3(-1.0, 0.0, 0.0);
@@ -96,7 +96,7 @@ bool checkCollision(state & const curState, state & nextState, const float radiu
     return true;
 }
 
-void findFraction(state& const curState, state& const nextState, const float radius, const float cubeSize, float& fraction) {
+void findFraction(state& curState, state& nextState, const float radius, const float cubeSize, float& fraction) {
     float hitPoint = (cubeSize / 2) - radius;
     float curHeight;
     if (abs(nextState.position.x) > hitPoint) {
@@ -274,10 +274,10 @@ int main() {
     
     
     int width, height;
-    float h = 0.01;
+    float h = 0.01f;
     float f;
-    float t = 0.0;
-    float t_max = 120;
+    float t = 0.0f;
+    float t_max = 120.0f;
     state curState;
     state nextState;
     state collState;
@@ -336,7 +336,7 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, curState.position);
         sperspective.setMat4("model", model);
-        glDrawElements(GL_TRIANGLES, ball.indices.size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
 
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
@@ -486,7 +486,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         lastX = xpos;
         lastY = ypos;
 
-        float mouseSens = 0.2;
+        float mouseSens = 0.2f;
         xoffset *= mouseSens;
         yoffset *= mouseSens;
 
@@ -526,9 +526,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int modsd
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {   
     
-    sensitivity += 0.2 * yoffset;
+    sensitivity += 0.2f * static_cast<float>(yoffset);
     if (sensitivity < 0) {
-        sensitivity = 0.01;
+        sensitivity = 0.01f;
     }
 
     fov -= (float)yoffset;
