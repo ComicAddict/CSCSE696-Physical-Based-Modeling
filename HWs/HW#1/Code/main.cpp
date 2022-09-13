@@ -56,9 +56,8 @@ void setInitConditions(state& cur, state& init) {
 
 void setAcceleration(state& curState, glm::vec3& acc) {
     glm::vec3 gravity = curState.m * curState.gravity;
-    curState.wind = curState.windFactor * curState.velocity * curState.velocity;
     glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity * curState.velocity;
-    glm::vec3 totalForce = gravity + curState.wind + airResistance;
+    glm::vec3 totalForce = gravity + curState.windFactor * curState.wind * curState.wind + airResistance;
     acc = totalForce / curState.m;
 }
 
@@ -124,7 +123,9 @@ void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
     nextState.position = collState.position;
     glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
     glm::vec3 VT = collState.velocity - VN;
-    glm::vec3 nextVT = VT - glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
+    glm::vec3 nextVT = VT;
+    if (glm::length(VT) > 0.01)
+        glm::vec3 nextVT = VT - glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
 
     #ifdef _DEBUG
@@ -196,7 +197,8 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //using core profile of opengl
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     
-    GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1920, 1080, "LearnOpenGL", NULL, NULL);
+    //glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, 1920, 1080, GLFW_DONT_CARE);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -218,7 +220,7 @@ int main() {
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    glViewport(0, 0, 800, 600);
+    glViewport(0, 0, 1920, 1080);
     int dims[2] = { 32, 16 };
     float radius = .5f;
     Sphere ball = Sphere(dims[0], dims[1], true, radius);
@@ -359,7 +361,7 @@ int main() {
         //glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
         // all drawings done lets do some imgui stuff
 
-        RenderUI();
+        //RenderUI();
         ImGui::Begin("Object Settings");
         bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
         bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
@@ -382,9 +384,7 @@ int main() {
         if (ImGui::Button("Reset")) {
             setInitConditions(curState, init);
         }
-        ImGui::InputFloat3("Gravity", glm::value_ptr(curState.gravity));
-        ImGui::InputFloat3("Wind", glm::value_ptr(curState.wind));
-        ImGui::InputFloat("Wind Factor", &curState.windFactor);
+        ImGui::Text("Integration");
         ImGui::SliderFloat("Timestep", &h, .01f, 1.0f);
         ImGui::Text("Initial Conditions");
         ImGui::InputFloat3("Gravity", glm::value_ptr(init.gravity));
