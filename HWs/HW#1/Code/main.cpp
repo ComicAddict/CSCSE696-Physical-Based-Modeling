@@ -100,17 +100,22 @@ void findFraction(state& curState, state& nextState, const float radius, const f
     float hitPoint = (cubeSize / 2) - radius;
     float curHeight;
     if (abs(nextState.position.x) > hitPoint) {
-        curHeight = - hitPoint - curState.position.x;
+        curHeight = hitPoint - abs(curState.position.x);
         fraction = curHeight / (nextState.position.x - curState.position.x);
     }
     else if (abs(nextState.position.y) > hitPoint) {
-        curHeight = - hitPoint - curState.position.y;
+        curHeight = hitPoint - abs(curState.position.y);
         fraction = curHeight / (nextState.position.y - curState.position.y);
     } 
     else if (abs(nextState.position.z) > hitPoint) {
-        curHeight = - hitPoint - curState.position.z;
+        curHeight = hitPoint - abs(curState.position.z);
         fraction = curHeight / (nextState.position.z - curState.position.z);
     }
+#ifdef _DEBUG
+    printf("Current Distance from Surface: %f, fraction time: %f\n", curHeight, fraction);
+#endif // DEBUG
+
+        
 }
 
 void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
@@ -118,10 +123,17 @@ void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
     float mu = 0.0f;
     nextState.position = collState.position;
     glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
-    printf("%f,%f,%f\n", VN.x, VN.y, VN.z);
     glm::vec3 VT = collState.velocity - VN;
     glm::vec3 nextVT = VT;//-glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
+
+#ifdef _DEBUG
+    printf("    VT: %f,%f,%f\n", VT.x, VT.y, VT.z);
+    printf("    VN: %f,%f,%f\n", VN.x, VN.y, VN.z);
+    printf("    Next VT: %f,%f,%f\n", nextVT.x, nextVT.y, nextVT.z);
+    printf("    Next VN: %f,%f,%f\n", nextVN.x, nextVN.y, nextVN.z);
+#endif // _DEBUG
+
     nextState.velocity = nextVT + nextVN;
 }
 
@@ -340,6 +352,7 @@ int main() {
 
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
+
         glBindVertexArray(VAO_cube);
         glDrawArrays(GL_LINE_STRIP, 0, 16);
 
@@ -384,17 +397,22 @@ int main() {
 
         //TODO: Simulation Part
         if (timeToSimulate || stepSim) {
+#ifdef _DEBUG
             printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
+            printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
+#endif // _DEBUG
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
             setAcceleration(curState, acc_ball);
+            timestep = h;
             integrate(curState, nextState, acc_ball, timestep);
             glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
             if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
                 findFraction(curState, nextState, radius, cubeSize, f);
                 timestep = f * h;
                 integrate(curState, collState, acc_ball, timestep);
+#ifdef _DEBUG
                 printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
-                
+#endif // _DEBUG
                 collResponse(collState, nextState, hitNormal);
                 t += timestep;
             }
@@ -431,6 +449,10 @@ int main() {
 
         if (sliderCube) {
             generateWireframeCube(cubeSize, cubevertices);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
         }
 
         
