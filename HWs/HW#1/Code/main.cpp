@@ -111,28 +111,28 @@ void findFraction(state& curState, state& nextState, const float radius, const f
         curHeight = hitPoint - abs(curState.position.z);
         fraction = curHeight / (nextState.position.z - curState.position.z);
     }
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("Current Distance from Surface: %f, fraction time: %f\n", curHeight, fraction);
-#endif // DEBUG
+    #endif // DEBUG
 
         
 }
 
 void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
-    float elas = 1.0f;
-    float mu = 0.0f;
+    float elas = 0.5f;
+    float mu = 0.1f;
     nextState.position = collState.position;
     glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
     glm::vec3 VT = collState.velocity - VN;
-    glm::vec3 nextVT = VT;//-glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
+    glm::vec3 nextVT = VT - glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
 
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("    VT: %f,%f,%f\n", VT.x, VT.y, VT.z);
     printf("    VN: %f,%f,%f\n", VN.x, VN.y, VN.z);
     printf("    Next VT: %f,%f,%f\n", nextVT.x, nextVT.y, nextVT.z);
     printf("    Next VN: %f,%f,%f\n", nextVN.x, nextVN.y, nextVN.z);
-#endif // _DEBUG
+    #endif // _DEBUG
 
     nextState.velocity = nextVT + nextVN;
 }
@@ -397,10 +397,10 @@ int main() {
 
         //TODO: Simulation Part
         if (timeToSimulate || stepSim) {
-#ifdef _DEBUG
+        #ifdef _DEBUG
             printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
             printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
-#endif // _DEBUG
+        #endif // _DEBUG
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
             setAcceleration(curState, acc_ball);
             timestep = h;
@@ -410,9 +410,9 @@ int main() {
                 findFraction(curState, nextState, radius, cubeSize, f);
                 timestep = f * h;
                 integrate(curState, collState, acc_ball, timestep);
-#ifdef _DEBUG
+        #ifdef _DEBUG
                 printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
-#endif // _DEBUG
+        #endif // _DEBUG
                 collResponse(collState, nextState, hitNormal);
                 t += timestep;
             }
