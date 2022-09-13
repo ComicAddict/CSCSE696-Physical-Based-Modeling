@@ -318,7 +318,8 @@ int main() {
     float timestep = h;
     setInitConditions(curState, init);
     bool stepSim = false;
-
+    float timeToDraw = 0.0f;
+    glm::vec3 posBuf;
     while (!glfwWindowShouldClose(window))
     {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -328,6 +329,8 @@ int main() {
 
         glClearColor(.2f, .3f, .3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+        
 
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
@@ -348,7 +351,11 @@ int main() {
 
         glBindVertexArray(VAO_sphere);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, curState.position);
+        
+        if (glfwGetTime() > t) {
+            posBuf = curState.position;
+        }
+        model = glm::translate(model, posBuf);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
 
@@ -392,27 +399,34 @@ int main() {
         ImGui::InputFloat3("Velocity", glm::value_ptr(init.velocity));
         ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
         ImGui::InputFloat("Wind Factor", &init.windFactor);
+        ImGui::InputFloat("Air Resistance Factor", &init.airResistanceFactor);
 
         ImGui::End();
 
         //TODO: Simulation Part
         if (timeToSimulate || stepSim) {
-        #ifdef _DEBUG
+            #ifdef _DEBUG
             printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
             printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
-        #endif // _DEBUG
+            #endif // _DEBUG
+
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
             setAcceleration(curState, acc_ball);
+
             timestep = h;
             integrate(curState, nextState, acc_ball, timestep);
+
             glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
+
             if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
                 findFraction(curState, nextState, radius, cubeSize, f);
                 timestep = f * h;
                 integrate(curState, collState, acc_ball, timestep);
-        #ifdef _DEBUG
+
+                #ifdef _DEBUG
                 printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
-        #endif // _DEBUG
+                #endif // _DEBUG
+
                 collResponse(collState, nextState, hitNormal);
                 t += timestep;
             }
