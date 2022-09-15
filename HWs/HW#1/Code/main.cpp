@@ -2,6 +2,8 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <chrono>
+#include <random>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -12,6 +14,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/random.hpp>
 #include <cmath>
 #include "shader.h"
 #include "Sphere.h"
@@ -275,6 +278,7 @@ int main() {
 
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
+    Shader fperspective("../../../HWs/HW#1/Code/shaders/vert_flat.glsl", "../../../HWs/HW#1/Code/shaders/frag_flat.glsl");
 
     sperspective.use();
 
@@ -305,7 +309,6 @@ int main() {
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    
     state init;
     init.m = 1.0f;
     init.airResistanceFactor = 0;
@@ -320,26 +323,32 @@ int main() {
     bool stepSim = false;
     float timeToDraw = 0.0f;
     glm::vec3 posBuf;
+
+    clock_t timeBuffer;
+    bool display = true;
+
+    clock_t now = clock();
+    clock_t startAfterButton;
+    clock_t lastTimeBeforeButton;
+    std::chrono::steady_clock::time_point t_sim = std::chrono::steady_clock::now();
     while (!glfwWindowShouldClose(window))
     {
+        // time handling for input, should not interfere with this
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTimeFrame = currentFrame - lastFrame;
         lastFrame = currentFrame;
         processInput(window);
 
+        //time handling for simulations
         glClearColor(.2f, .3f, .3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-        
-
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
         //end of imgui init stuff
-
-        sperspective.use();
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
         sperspective.setMat4("view", view);
@@ -352,23 +361,21 @@ int main() {
         glBindVertexArray(VAO_sphere);
         glm::mat4 model = glm::mat4(1.0f);
         
-        if (glfwGetTime() > t) {
+        if (display) {
             posBuf = curState.position;
         }
         model = glm::translate(model, posBuf);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
-
+        
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
 
         glBindVertexArray(VAO_cube);
         glDrawArrays(GL_LINE_STRIP, 0, 16);
 
-        //glPolygonMode(GL_FRONT_AND_BACK, polygonMode);
         // all drawings done lets do some imgui stuff
 
-        //RenderUI();
         ImGui::Begin("Object Settings");
         bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
         bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
@@ -378,10 +385,22 @@ int main() {
         ImGui::Begin("Render Setting");
         bool sliderPS = ImGui::SliderFloat("Point Size", &pointSize, .01f, 10.0f);
         bool sliderLS = ImGui::SliderFloat("Line Size", &lineSize, .01f, 10.0f);
+        if (ImGui::Button("Flat Shading")) {
+            fperspective.use();
+        }
+        if (ImGui::Button("Smooth Shading")) {
+            sperspective.use();
+        }
         ImGui::End();
 
         ImGui::Begin("Simulation Setting");
         if (ImGui::Button("Start/Pause Simulation")) {
+            if (!timeToSimulate) {
+                startAfterButton = clock();
+            }
+            else {
+                lastTimeBeforeButton = clock();
+            }
             timeToSimulate = !timeToSimulate;
             stepSim = false;
         }
@@ -400,14 +419,51 @@ int main() {
         ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
         ImGui::InputFloat("Wind Factor", &init.windFactor);
         ImGui::InputFloat("Air Resistance Factor", &init.airResistanceFactor);
+        if (ImGui::Button("Randomize")) {
+            cubeSize = glm::linearRand(0.1f, 30.0f);
+            generateWireframeCube(cubeSize, cubevertices);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+
+            radius = glm::linearRand(0.01f, cubeSize/5.0f);
+            ball.setDims(dims[0], dims[1], radius);
+
+            glBindVertexArray(VAO_sphere);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
+            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
+
+            init.position = glm::ballRand<float>(cubeSize/2.0f);
+            init.velocity = glm::ballRand<float>(5.0f);
+            init.wind = glm::ballRand<float>(5.0f);
+            init.airResistanceFactor = glm::linearRand(0.0f, 1.0f);
+            init.windFactor = glm::linearRand(0.0f, 1.0f);
+            setInitConditions(curState, init);
+        }
 
         ImGui::End();
 
         //TODO: Simulation Part
-        if (timeToSimulate || stepSim) {
+        // first determine whether it is time to simulate by checking t and now
+        std::chrono::duration<float> secPassed = std::chrono::steady_clock::now() - t_sim;
+        //printf("Second Passed from last sim: %f\n ,simTime in sim: %f\n", secPassed, t);
+
+        if ( secPassed.count() >= h  && (timeToSimulate || stepSim)) {
             #ifdef _DEBUG
-            printf("simulating, Time: %f, GLFWTime: %f, deltaFrameTime: %f\n", t, static_cast<float>(glfwGetTime()), deltaTimeFrame);
-            printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
+            //printf("simulating, Time: %f, t_sim: %f, deltaFrameTime: %f\n", t, t_sim.time_since_epoch(), deltaTimeFrame);
+            //printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
             #endif // _DEBUG
 
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
@@ -435,15 +491,11 @@ int main() {
             }
             curState = nextState;
             stepSim = false;
+            t_sim = std::chrono::steady_clock::now();
         }
 
         if (sliderDim || sliderRad) {
             ball.setDims(dims[0], dims[1], radius);
-            glGenBuffers(1, &VBO_pos);
-
-            glGenBuffers(1, &VBO_normal);
-
-            glGenBuffers(1, &EBO);
 
             glBindVertexArray(VAO_sphere);
 
@@ -469,7 +521,6 @@ int main() {
             glEnableVertexAttribArray(0);
         }
 
-        
         if (sliderPS) {
             glPointSize(pointSize);
         }
@@ -482,6 +533,9 @@ int main() {
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        if (glfwGetTime() < t) {
+            display = false;
+        }
     }
 
     ImGui_ImplOpenGL3_Shutdown();
