@@ -59,8 +59,8 @@ void setInitConditions(state& cur, state& init) {
 
 void setAcceleration(state& curState, glm::vec3& acc) {
     glm::vec3 gravity = curState.m * curState.gravity;
-    glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity * curState.velocity;
-    glm::vec3 totalForce = gravity + curState.windFactor * curState.wind * curState.wind + airResistance;
+    glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity;
+    glm::vec3 totalForce = gravity + curState.windFactor * curState.wind + airResistance;
     acc = totalForce / curState.m;
 }
 
@@ -120,9 +120,7 @@ void findFraction(state& curState, state& nextState, const float radius, const f
         
 }
 
-void collResponse(state& collState, state& nextState, glm::vec3 hitNormal) {
-    float elas = 0.5f;
-    float mu = 0.1f;
+void collResponse(state& collState, state& nextState, glm::vec3 hitNormal, float &elas, float &mu) {
     nextState.position = collState.position;
     glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
     glm::vec3 VT = collState.velocity - VN;
@@ -224,7 +222,7 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     glViewport(0, 0, 1920, 1080);
-    int dims[2] = { 32, 16 };
+    int dims[2] = { 32, 64 };
     float radius = .5f;
     Sphere ball = Sphere(dims[0], dims[1], true, radius);
 
@@ -257,6 +255,10 @@ int main() {
     
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // TODO: add a plane at the bottom
+    unsigned int VAO_plane;
+    glGenVertexArrays(1, &VAO_plane);
 
     unsigned int VAO_cube;
     glGenVertexArrays(1, &VAO_cube);
@@ -312,7 +314,7 @@ int main() {
     state init;
     init.m = 1.0f;
     init.airResistanceFactor = 0;
-    init.gravity = glm::vec3(0.0, 0.0, -1.0);
+    init.gravity = glm::vec3(0.0, 0.0, -10.0);
     init.position = glm::vec3(0.0, 0.0, 3.0);
     init.velocity = glm::vec3(0.0, 0.0, 0.0);
     init.wind = glm::vec3(0.0, 0.0, 0.0);
@@ -324,12 +326,8 @@ int main() {
     float timeToDraw = 0.0f;
     glm::vec3 posBuf;
 
-    clock_t timeBuffer;
-    bool display = true;
-
-    clock_t now = clock();
-    clock_t startAfterButton;
-    clock_t lastTimeBeforeButton;
+    float elas = 0.1f;
+    float mu = 0.4f;
     std::chrono::steady_clock::time_point t_sim = std::chrono::steady_clock::now();
     while (!glfwWindowShouldClose(window))
     {
@@ -339,8 +337,7 @@ int main() {
         lastFrame = currentFrame;
         processInput(window);
 
-        //time handling for simulations
-        glClearColor(.2f, .3f, .3f, 1.0f);
+        glClearColor(0.6f, 1.0f, 0.9f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
         //start of imgui init stuff
@@ -361,10 +358,7 @@ int main() {
         glBindVertexArray(VAO_sphere);
         glm::mat4 model = glm::mat4(1.0f);
         
-        if (display) {
-            posBuf = curState.position;
-        }
-        model = glm::translate(model, posBuf);
+        model = glm::translate(model, curState.position);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
         
@@ -395,12 +389,6 @@ int main() {
 
         ImGui::Begin("Simulation Setting");
         if (ImGui::Button("Start/Pause Simulation")) {
-            if (!timeToSimulate) {
-                startAfterButton = clock();
-            }
-            else {
-                lastTimeBeforeButton = clock();
-            }
             timeToSimulate = !timeToSimulate;
             stepSim = false;
         }
@@ -409,9 +397,11 @@ int main() {
         }
         if (ImGui::Button("Reset")) {
             setInitConditions(curState, init);
+            t = 0;
+            t_sim = std::chrono::steady_clock::now();
         }
         ImGui::Text("Integration");
-        ImGui::SliderFloat("Timestep", &h, .01f, 1.0f);
+        ImGui::SliderFloat("Timestep", &h, .001f, 0.5f);
         ImGui::Text("Initial Conditions");
         ImGui::InputFloat3("Gravity", glm::value_ptr(init.gravity));
         ImGui::InputFloat3("Position", glm::value_ptr(init.position));
@@ -419,6 +409,8 @@ int main() {
         ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
         ImGui::InputFloat("Wind Factor", &init.windFactor);
         ImGui::InputFloat("Air Resistance Factor", &init.airResistanceFactor);
+        ImGui::InputFloat("Elasticity", &elas);
+        ImGui::InputFloat("Friction", &mu);
         if (ImGui::Button("Randomize")) {
             cubeSize = glm::linearRand(0.1f, 30.0f);
             generateWireframeCube(cubeSize, cubevertices);
@@ -450,6 +442,43 @@ int main() {
             init.wind = glm::ballRand<float>(5.0f);
             init.airResistanceFactor = glm::linearRand(0.0f, 1.0f);
             init.windFactor = glm::linearRand(0.0f, 1.0f);
+            elas = glm::linearRand(0.0f, 1.0f);
+            mu = glm::linearRand(0.0f, 1.0f);
+            setInitConditions(curState, init);
+        }
+        if (ImGui::Button("Bottom Collision")) {
+            cubeSize = 10.0f;
+            generateWireframeCube(cubeSize, cubevertices);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+
+            radius = 2.0f;
+            ball.setDims(dims[0], dims[1], radius);
+
+            glBindVertexArray(VAO_sphere);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
+            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
+            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
+
+            init.position = glm::vec3();
+            init.velocity = glm::ballRand<float>(5.0f);
+            init.wind = glm::ballRand<float>(5.0f);
+            init.airResistanceFactor = glm::linearRand(0.0f, 1.0f);
+            init.windFactor = glm::linearRand(0.0f, 1.0f);
+            elas = glm::linearRand(0.0f, 1.0f);
+            mu = glm::linearRand(0.0f, 1.0f);
             setInitConditions(curState, init);
         }
 
@@ -483,7 +512,7 @@ int main() {
                 printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
                 #endif // _DEBUG
 
-                collResponse(collState, nextState, hitNormal);
+                collResponse(collState, nextState, hitNormal, elas, mu);
                 t += timestep;
             }
             else {
@@ -533,9 +562,6 @@ int main() {
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-        if (glfwGetTime() < t) {
-            display = false;
-        }
     }
 
     ImGui_ImplOpenGL3_Shutdown();
