@@ -43,7 +43,7 @@ float deltaTimeFrame = .0f;
 float lastFrame = .0f;
 bool timeToSimulate = false;
 
-struct state{
+struct state {
     float m;
     glm::vec3 position;
     glm::vec3 velocity;
@@ -64,24 +64,24 @@ void setAcceleration(state& curState, glm::vec3& acc) {
     acc = totalForce / curState.m;
 }
 
-void integrate(state& curState, state& nextState, glm::vec3& acc, float &h) {
+void integrate(state& curState, state& nextState, glm::vec3& acc, float& h) {
     nextState.m = curState.m;
     nextState.airResistanceFactor = curState.airResistanceFactor;
     nextState.gravity = curState.gravity;
     nextState.wind = curState.wind;
     nextState.windFactor = curState.windFactor;
-    nextState.velocity = curState.velocity + acc*h;
-    nextState.position = curState.position + curState.velocity*h;
+    nextState.velocity = curState.velocity + acc * h;
+    nextState.position = curState.position + curState.velocity * h;
 }
 
-bool checkCollision(state & curState, state & nextState, const float radius, const float cubeSize, glm::vec3 &hitNormal) {
+bool checkCollision(state& curState, state& nextState, const float radius, const float cubeSize, glm::vec3& hitNormal) {
     float hitPoint = (cubeSize / 2) - radius;
     if (nextState.position.x > hitPoint) {
         hitNormal = glm::vec3(-1.0, 0.0, 0.0);
-    } 
+    }
     else if (nextState.position.x < -hitPoint) {
         hitNormal = glm::vec3(1.0, 0.0, 0.0);
-    } 
+    }
     else if (nextState.position.y > hitPoint) {
         hitNormal = glm::vec3(0.0, -1.0, 0.0);
     }
@@ -108,19 +108,19 @@ void findFraction(state& curState, state& nextState, const float radius, const f
     else if (abs(nextState.position.y) > hitPoint) {
         curHeight = hitPoint - abs(curState.position.y);
         fraction = curHeight / (nextState.position.y - curState.position.y);
-    } 
+    }
     else if (abs(nextState.position.z) > hitPoint) {
         curHeight = hitPoint - abs(curState.position.z);
         fraction = curHeight / (nextState.position.z - curState.position.z);
     }
-    #ifdef _DEBUG
+#ifdef _DEBUG
     printf("Current Distance from Surface: %f, fraction time: %f\n", curHeight, fraction);
-    #endif // DEBUG
+#endif // DEBUG
 
-        
+
 }
 
-void collResponse(state& collState, state& nextState, glm::vec3 hitNormal, float &elas, float &mu) {
+void collResponse(state& collState, state& nextState, glm::vec3 hitNormal, float& elas, float& mu) {
     nextState.position = collState.position;
     glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
     glm::vec3 VT = collState.velocity - VN;
@@ -129,17 +129,17 @@ void collResponse(state& collState, state& nextState, glm::vec3 hitNormal, float
         glm::vec3 nextVT = VT - glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
     glm::vec3 nextVN = -elas * VN;
 
-    #ifdef _DEBUG
+#ifdef _DEBUG
     printf("    VT: %f,%f,%f\n", VT.x, VT.y, VT.z);
     printf("    VN: %f,%f,%f\n", VN.x, VN.y, VN.z);
     printf("    Next VT: %f,%f,%f\n", nextVT.x, nextVT.y, nextVT.z);
     printf("    Next VN: %f,%f,%f\n", nextVN.x, nextVN.y, nextVN.z);
-    #endif // _DEBUG
+#endif // _DEBUG
 
     nextState.velocity = nextVT + nextVN;
 }
 
-void generateWireframeCube(float cubeSize, float *vertices) {
+void generateWireframeCube(float cubeSize, float* vertices) {
     float cubeVertices[] = {
         cubeSize / 2.0f, cubeSize / 2.0f, cubeSize / 2.0f,
         cubeSize / 2.0f, -cubeSize / 2.0f, cubeSize / 2.0f,
@@ -175,7 +175,7 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         camPos -= camSpeed * camFront;
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camPos -= camSpeed * glm::normalize(glm::cross(camFront,camUp));
+        camPos -= camSpeed * glm::normalize(glm::cross(camFront, camUp));
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camPos += camSpeed * glm::normalize(glm::cross(camFront, camUp));
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
@@ -191,13 +191,13 @@ void processInput(GLFWwindow* window)
 }
 
 int main() {
-    
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // opengl version 3
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3); //opengil version 3.3
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //using core profile of opengl
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    
+
     GLFWwindow* window = glfwCreateWindow(1920, 1080, "LearnOpenGL", NULL, NULL);
     //glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, 1920, 1080, GLFW_DONT_CARE);
     if (window == NULL)
@@ -207,7 +207,7 @@ int main() {
         return -1;
     }
     glfwMakeContextCurrent(window);
-    
+
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -222,9 +222,28 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     glViewport(0, 0, 1920, 1080);
-    int dims[2] = { 32, 64 };
+    int dims[2] = { 4, 8 };
     float radius = .5f;
     Sphere ball = Sphere(dims[0], dims[1], true, radius);
+
+    //TODO generate particles, at this point these are just state vector
+    glm::vec3 particles[1000];
+    for (int i = 0; i < 1000; i++) {
+        particles[i] = glm::ballRand<float>(1.0f);
+    }
+
+    unsigned int VAO_particles;
+    glGenVertexArrays(1, &VAO_particles);
+    
+    unsigned int VBO_par_pos;
+    glGenBuffers(1,&VBO_par_pos);
+
+    glBindVertexArray(VAO_particles);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_par_pos);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
 
     unsigned int VAO_sphere;
     glGenVertexArrays(1, &VAO_sphere);
@@ -239,7 +258,7 @@ int main() {
     glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO_sphere);
-    
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
     glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
@@ -251,8 +270,8 @@ int main() {
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size()*sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-    
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -305,10 +324,10 @@ int main() {
 
     unsigned int VBO_cube;
     glGenBuffers(1, &VBO_cube);
-    
+
     glBindVertexArray(VAO_cube);
 
-    
+
     float cubeSize = 10.0f;
     float  cubevertices[48];
     generateWireframeCube(cubeSize, cubevertices);
@@ -318,7 +337,7 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl","../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
+    Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl", "../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
     Shader fperspective("../../../HWs/HW#1/Code/shaders/vert_flat.glsl", "../../../HWs/HW#1/Code/shaders/frag_flat.glsl");
 
@@ -331,8 +350,8 @@ int main() {
     glLineWidth(lineSize);
 
     glEnable(GL_DEPTH_TEST);
-    
-    
+
+
     int width, height;
     float h = 0.01f;
     float f;
@@ -341,7 +360,7 @@ int main() {
     state curState;
     state nextState;
     state collState;
-    
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -379,7 +398,7 @@ int main() {
 
         glClearColor(0.6f, 1.0f, 0.9f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -395,25 +414,37 @@ int main() {
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 400.0f);
         sperspective.setMat4("projection", projection);
 
-        glBindVertexArray(VAO_plane);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f,0.0f,-cubeSize/2));
+        /*
+        glBindVertexArray(VAO_plane);
+        
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, -cubeSize / 2));
         glUniformMatrix4fv(glGetUniformLocation(sperspective.ID, "model"), 1, GL_FALSE, &model[0][0]);
         glDrawArrays(GL_TRIANGLES, 0, 6);
-
+        */
         glBindVertexArray(VAO_sphere);
         model = glm::mat4(1.0f);
-        
+
         model = glm::translate(model, curState.position);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
-        
+
+        glBindVertexArray(VAO_particles);
+        for (int i = 0; i < 1000; i++) {
+            
+            model = glm::mat4(1.0f);
+
+            model = glm::translate(model, particles[i]);
+            sperspective.setMat4("model", model);
+            glDrawArrays(GL_POINT, );
+        }
+        /*
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
 
         glBindVertexArray(VAO_cube);
         glDrawArrays(GL_LINE_STRIP, 0, 16);
-
+        */
         // all drawings done lets do some imgui stuff
 
         ImGui::Begin("Object Settings");
@@ -466,7 +497,7 @@ int main() {
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
             glEnableVertexAttribArray(0);
 
-            radius = glm::linearRand(0.01f, cubeSize/5.0f);
+            radius = glm::linearRand(0.01f, cubeSize / 5.0f);
             ball.setDims(dims[0], dims[1], radius);
 
             glBindVertexArray(VAO_sphere);
@@ -484,343 +515,13 @@ int main() {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
 
-            init.position = glm::ballRand<float>(cubeSize/2.0f);
+            init.position = glm::ballRand<float>(cubeSize / 2.0f);
             init.velocity = glm::ballRand<float>(5.0f);
             init.wind = glm::ballRand<float>(5.0f);
             init.airResistanceFactor = glm::linearRand(0.0f, 1.0f);
             init.windFactor = glm::linearRand(0.0f, 1.0f);
             elas = glm::linearRand(0.0f, 1.0f);
             mu = glm::linearRand(0.0f, 1.0f);
-            setInitConditions(curState, init);
-        }
-        if (ImGui::Button("Bottom Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f,0.0f,-10.0f);
-            init.position = glm::vec3(0.0f,0.0f,3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor =0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-        if (ImGui::Button("Top Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, 0.0f, 10.0f);
-            init.position = glm::vec3(0.0f, 0.0f, -3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-
-        if (ImGui::Button("Side 1 Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, 10.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-
-        if (ImGui::Button("Side 2 Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(10.0f, 0.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-
-        if (ImGui::Button("Side 3 Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, -10.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-
-        if (ImGui::Button("Side 4 Collision")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(-10.0f, 0.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 3.0f);
-            init.velocity = glm::vec3(0.0f);
-            init.wind = glm::vec3(0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-
-        if (ImGui::Button("Wind")) {
-            cubeSize = 40.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.velocity = glm::vec3(0.0f,0.0f,4.0f);
-            init.wind = glm::vec3(3.0f,1.0f,0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 1.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-        if (ImGui::Button("Air Resistance")) {
-            cubeSize = 40.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 2.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.velocity = glm::vec3(0.0f, 0.0f, 4.0f);
-            init.wind = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.airResistanceFactor = 0.2f;
-            init.windFactor = 0.0f;
-            elas = 0.7f;
-            mu = 0.1f;
-            setInitConditions(curState, init);
-        }
-        
-        if (ImGui::Button("Example Case 1")) {
-            cubeSize = 20.0f;
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = 3.0f;
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.gravity = glm::vec3(0.0f, 0.0f, -10.0f);
-            init.position = glm::vec3(0.0f, 0.0f, 5.0f);
-            init.velocity = glm::vec3(30.0f, 40.0f, 4.0f);
-            init.wind = glm::vec3(0.0f, 0.0f, 0.0f);
-            init.airResistanceFactor = 0.0f;
-            init.windFactor = 0.0f;
-            elas = 0.6f;
-            mu = 0.8f;
             setInitConditions(curState, init);
         }
 
@@ -831,20 +532,26 @@ int main() {
         std::chrono::duration<float> secPassed = std::chrono::steady_clock::now() - t_sim;
         //printf("Second Passed from last sim: %f\n ,simTime in sim: %f\n", secPassed, t);
 
-        if ( secPassed.count() >= h  && (timeToSimulate || stepSim)) {
+        if ((timeToSimulate || stepSim)) {//secPassed.count() >= h  &&
             #ifdef _DEBUG
             //printf("simulating, Time: %f, t_sim: %f, deltaFrameTime: %f\n", t, t_sim.time_since_epoch(), deltaTimeFrame);
             //printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
             #endif // _DEBUG
 
+            //lets do some lorenz stuff first
+            curState.velocity.x = 10.0f * (curState.position.y - curState.position.x);
+            curState.velocity.y = curState.position.x * (28.0f - curState.position.z) - curState.position.y;
+            curState.velocity.z = curState.position.x * curState.position.y - (8.0f * curState.position.x / 3.0);
+
+            curState.position = curState.position + 0.01f * curState.velocity;
             glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
-            setAcceleration(curState, acc_ball);
+            //setAcceleration(curState, acc_ball);
 
             timestep = h;
-            integrate(curState, nextState, acc_ball, timestep);
+            //integrate(curState, nextState, acc_ball, timestep);
 
             glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
-
+            /*
             if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
                 findFraction(curState, nextState, radius, cubeSize, f);
                 timestep = f * h;
@@ -860,8 +567,10 @@ int main() {
             else {
                 t += timestep;
             }
-            curState = nextState;
+            */
+            //curState = nextState;
             stepSim = false;
+
             t_sim = std::chrono::steady_clock::now();
         }
 
@@ -968,11 +677,11 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int modsdouble)
 {
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS){
-        
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+
     }
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-        if(focused)
+        if (focused)
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         else
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -982,8 +691,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int modsd
 
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{   
-    
+{
+
     sensitivity += 0.2f * static_cast<float>(yoffset);
     if (sensitivity < 0) {
         sensitivity = 0.01f;
@@ -1000,7 +709,7 @@ void RenderUI() {
 
     ImGui::Begin("Variables");
     ImGui::Text("Hello There!");
-    
+
 
     ImGui::End();
 }
