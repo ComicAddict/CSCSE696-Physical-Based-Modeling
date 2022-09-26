@@ -18,6 +18,7 @@
 #include <cmath>
 #include "shader.h"
 #include "Sphere.h"
+#include "Particle.h"
 
 int main();
 
@@ -190,6 +191,10 @@ void processInput(GLFWwindow* window)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
+struct collider {
+    glm::vec3 v[3];
+};
+
 int main() {
 
     glfwInit();
@@ -227,9 +232,13 @@ int main() {
     Sphere ball = Sphere(dims[0], dims[1], true, radius);
 
     //TODO generate particles, at this point these are just state vector
-    glm::vec3 particles[1000];
-    for (int i = 0; i < 1000; i++) {
-        particles[i] = glm::ballRand<float>(1.0f);
+    
+    const int particle_num = 1000;
+    glm::vec3 particles[particle_num];
+    glm::vec3 norm[particle_num];
+    for (int i = 0; i < particle_num; i++) {
+        particles[i] = glm::vec3(0.0f,0.0f,20.0f) + glm::ballRand<float>(20.0f);
+        norm[i] = glm::vec3(0.0f,0.0f,1.0f);
     }
 
     unsigned int VAO_particles;
@@ -238,12 +247,45 @@ int main() {
     unsigned int VBO_par_pos;
     glGenBuffers(1,&VBO_par_pos);
 
+    unsigned int VBO_par_norm;
+    glGenBuffers(1, &VBO_par_norm);
+
     glBindVertexArray(VAO_particles);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_par_pos);
     glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_par_norm);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    std::vector<glm::vec3> path_pos;
+    std::vector<glm::vec3> path_norm;
+    path_pos.push_back(particles[0]);
+    path_norm.push_back(norm[0]);
+    unsigned int VAO_path;
+    glGenVertexArrays(1, &VAO_path);
+
+    unsigned int VBO_path_pos;
+    glGenBuffers(1, &VBO_path_pos);
+
+    unsigned int VBO_path_norm;
+    glGenBuffers(1, &VBO_path_norm);
+
+    glBindVertexArray(VAO_path);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_path_pos);
+    glBufferData(GL_ARRAY_BUFFER, path_pos.size() * sizeof(float), &path_pos[0], GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_path_norm);
+    glBufferData(GL_ARRAY_BUFFER, path_norm.size() * sizeof(float), &path_norm[0], GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
 
     unsigned int VAO_sphere;
     glGenVertexArrays(1, &VAO_sphere);
@@ -266,7 +308,7 @@ int main() {
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
     glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3*sizeof(float)));
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -275,7 +317,6 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // TODO: add a plane at the bottom
     unsigned int VAO_plane;
     glGenVertexArrays(1, &VAO_plane);
 
@@ -388,6 +429,33 @@ int main() {
     float elas = 0.1f;
     float mu = 0.4f;
     std::chrono::steady_clock::time_point t_sim = std::chrono::steady_clock::now();
+
+    /*
+    // Lorenz Params
+    float sigma = 10.0f;
+    float rho = 28.0f;
+    float beta = 8.0f / 3.0f;
+    */
+
+    std::vector<glm::vec3> position;
+    std::vector<glm::vec3> velocity;
+    std::vector<glm::vec3> acceleration;
+
+    //particle generation for now it is static
+    // TODO: add mouse callback for particle generation
+    int np = 1000;
+    for (int i = 0; i < np; i++) {
+        position.push_back(glm::vec3(0.0f,0.0f,10.0f) + glm::ballRand(5.0f));
+        velocity.push_back(glm::ballRand(3.0f));
+    }
+    
+
+
+    //TODO: add colliders
+    collider colls;
+    colls.v[0] = glm::vec3(3.0f,3.0f,0.0f);
+    //TODO: add an obj importer for this maybe
+    
     while (!glfwWindowShouldClose(window))
     {
         // time handling for input, should not interfere with this
@@ -413,32 +481,52 @@ int main() {
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 400.0f);
         sperspective.setMat4("projection", projection);
-
+        
         glm::mat4 model = glm::mat4(1.0f);
         /*
+        // Draw plane
         glBindVertexArray(VAO_plane);
         
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, -cubeSize / 2));
         glUniformMatrix4fv(glGetUniformLocation(sperspective.ID, "model"), 1, GL_FALSE, &model[0][0]);
         glDrawArrays(GL_TRIANGLES, 0, 6);
         */
+        /*
+        // Draw Sphere
         glBindVertexArray(VAO_sphere);
         model = glm::mat4(1.0f);
 
         model = glm::translate(model, curState.position);
         sperspective.setMat4("model", model);
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
+        */
+        sperspective.setMat4("model", model);
 
-        glBindVertexArray(VAO_particles);
-        for (int i = 0; i < 1000; i++) {
-            
-            model = glm::mat4(1.0f);
-
-            model = glm::translate(model, particles[i]);
-            sperspective.setMat4("model", model);
-            glDrawArrays(GL_POINT, );
-        }
         /*
+        // lorenz drawing 
+        glBindVertexArray(VAO_particles);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_par_pos);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glDrawArrays(GL_POINTS, 0, 3* particle_num);
+
+        // lorenz path
+        glBindVertexArray(VAO_path);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_path_pos);
+        glBufferData(GL_ARRAY_BUFFER, path_pos.size() * 3 * sizeof(float), glm::value_ptr<float>(path_pos[0]), GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_path_norm);
+        glBufferData(GL_ARRAY_BUFFER, path_norm.size() * 3 * sizeof(float), glm::value_ptr<float>(path_norm[0]), GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glDrawArrays(GL_LINE_STRIP, 0, path_pos.size());
+
+        */
+
+        /* 
+        // Cube Drawing
         model = glm::mat4(1.0f);
         sperspective.setMat4("model", model);
 
@@ -476,9 +564,27 @@ int main() {
             setInitConditions(curState, init);
             t = 0;
             t_sim = std::chrono::steady_clock::now();
+            /*
+            // Path Clearing and particle generation for lorenz
+            path_pos.clear();
+            path_norm.clear();
+            
+            for (int i = 0; i < particle_num; i++) {
+                particles[i] = glm::vec3(0.0f, 0.0f, 20.0f) + glm::ballRand<float>(20.0f);
+            }
+            path_pos.push_back(particles[0]);
+            path_norm.push_back(glm::vec3(0.0f, 0.0f, 1.0f));
+            */
         }
         ImGui::Text("Integration");
         ImGui::SliderFloat("Timestep", &h, .005f, 0.5f);
+        ImGui::Text("Lorenz Parameters");
+        /*
+        // Lorenz GUI
+        ImGui::InputFloat("Rho", &rho);
+        ImGui::InputFloat("Beta", &beta);
+        ImGui::InputFloat("Sigma", &sigma);
+        */
         ImGui::Text("Initial Conditions");
         ImGui::InputFloat("Mass", &init.m);
         ImGui::InputFloat3("Gravity", glm::value_ptr(init.gravity));
@@ -490,39 +596,6 @@ int main() {
         ImGui::InputFloat("Elasticity", &elas);
         ImGui::InputFloat("Friction", &mu);
         if (ImGui::Button("Randomize")) {
-            cubeSize = glm::linearRand(0.1f, 30.0f);
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            radius = glm::linearRand(0.01f, cubeSize / 5.0f);
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-            init.position = glm::ballRand<float>(cubeSize / 2.0f);
-            init.velocity = glm::ballRand<float>(5.0f);
-            init.wind = glm::ballRand<float>(5.0f);
-            init.airResistanceFactor = glm::linearRand(0.0f, 1.0f);
-            init.windFactor = glm::linearRand(0.0f, 1.0f);
-            elas = glm::linearRand(0.0f, 1.0f);
-            mu = glm::linearRand(0.0f, 1.0f);
-            setInitConditions(curState, init);
         }
 
         ImGui::End();
@@ -538,14 +611,20 @@ int main() {
             //printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
             #endif // _DEBUG
 
+            /*
+            // Lorenz integration, position based dynamics :D
             //lets do some lorenz stuff first
-            curState.velocity.x = 10.0f * (curState.position.y - curState.position.x);
-            curState.velocity.y = curState.position.x * (28.0f - curState.position.z) - curState.position.y;
-            curState.velocity.z = curState.position.x * curState.position.y - (8.0f * curState.position.x / 3.0);
-
-            curState.position = curState.position + 0.01f * curState.velocity;
-            glm::vec3 acc_ball = glm::vec3(0.0, 0.0, 0.0);
-            //setAcceleration(curState, acc_ball);
+            path_pos.push_back(particles[0]);
+            path_norm.push_back(glm::vec3(0.0f,0.0f,1.0f));
+            
+            for (int i = 0; i < particle_num; i++) {
+                glm::vec3 velocity;
+                velocity.x = sigma * (particles[i].y - particles[i].x);
+                velocity.y = particles[i].x * (rho - particles[i].z) - particles[i].y;
+                velocity.z = particles[i].x * particles[i].y - beta * particles[i].z;
+                particles[i] = particles[i] + 0.1f * deltaTimeFrame * velocity;
+            }
+            */
 
             timestep = h;
             //integrate(curState, nextState, acc_ball, timestep);
