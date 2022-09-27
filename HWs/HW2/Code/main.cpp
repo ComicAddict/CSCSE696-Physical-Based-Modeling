@@ -18,7 +18,8 @@
 #include <cmath>
 #include "shader.h"
 #include "Sphere.h"
-#include "Particle.h"
+#include "VertexBuffer.h"
+#include "IndexBuffer.h"
 
 int main();
 
@@ -43,6 +44,11 @@ float fov = 45.0f;
 float deltaTimeFrame = .0f;
 float lastFrame = .0f;
 bool timeToSimulate = false;
+
+struct Particle {
+    glm::vec3 p;
+    glm::vec3 v;
+};
 
 struct state {
     float m;
@@ -227,13 +233,10 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     glViewport(0, 0, 1920, 1080);
-    int dims[2] = { 4, 8 };
-    float radius = .5f;
-    Sphere ball = Sphere(dims[0], dims[1], true, radius);
 
     //TODO generate particles, at this point these are just state vector
-    
     const int particle_num = 1000;
+
     glm::vec3 particles[particle_num];
     glm::vec3 norm[particle_num];
     for (int i = 0; i < particle_num; i++) {
@@ -243,27 +246,20 @@ int main() {
 
     unsigned int VAO_particles;
     glGenVertexArrays(1, &VAO_particles);
-    
-    unsigned int VBO_par_pos;
-    glGenBuffers(1,&VBO_par_pos);
-
-    unsigned int VBO_par_norm;
-    glGenBuffers(1, &VBO_par_norm);
 
     glBindVertexArray(VAO_particles);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_par_pos);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
+    VertexBuffer vbParPos(particles, 3 * sizeof(float));
+
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_par_norm);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
+    VertexBuffer vbParNorm(norm, 3 * sizeof(float));
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    std::vector<glm::vec3> path_pos;
-    std::vector<glm::vec3> path_norm;
+    std::vector<glm::fvec3> path_pos;
+    std::vector<glm::fvec3> path_norm;
     path_pos.push_back(particles[0]);
     path_norm.push_back(norm[0]);
     unsigned int VAO_path;
@@ -286,97 +282,6 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, path_norm.size() * sizeof(float), &path_norm[0], GL_DYNAMIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-
-    unsigned int VAO_sphere;
-    glGenVertexArrays(1, &VAO_sphere);
-
-    unsigned int VBO_pos;
-    glGenBuffers(1, &VBO_pos);
-
-    unsigned int VBO_normal;
-    glGenBuffers(1, &VBO_normal);
-
-    unsigned int EBO;
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO_sphere);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-    glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-    glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3*sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    unsigned int VAO_plane;
-    glGenVertexArrays(1, &VAO_plane);
-
-    float planeVertices[] = {
-        100.0f,100.0f,0.0f,
-        -100.0f,100.0f,0.0f,
-        -100.0f,-100.0f,0.0f,
-        -100.0f,-100.0f,0.0f,
-        100.0f,-100.0f,0.0f,
-        100.0f,100.0f,0.0f
-    };
-
-    float planeNormal[] = {
-        .0f,.0f,1.0f,
-        .0f,.0f,1.0f,
-        .0f,.0f,1.0f,
-        .0f,.0f,1.0f,
-        .0f,.0f,1.0f,
-        .0f,.0f,1.0f
-    };
-
-    unsigned int VBO_pos_p;
-    glGenBuffers(1, &VBO_pos_p);
-
-    unsigned int VBO_normal_p;
-    glGenBuffers(1, &VBO_normal_p);
-
-    glBindVertexArray(VAO_plane);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_pos_p);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), &planeVertices[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_p);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(planeNormal), &planeNormal[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-
-    unsigned int VAO_cube;
-    glGenVertexArrays(1, &VAO_cube);
-
-    unsigned int VBO_cube;
-    glGenBuffers(1, &VBO_cube);
-
-    glBindVertexArray(VAO_cube);
-
-
-    float cubeSize = 10.0f;
-    float  cubevertices[48];
-    generateWireframeCube(cubeSize, cubevertices);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
 
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl", "../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
@@ -449,8 +354,6 @@ int main() {
         velocity.push_back(glm::ballRand(3.0f));
     }
     
-
-
     //TODO: add colliders
     collider colls;
     colls.v[0] = glm::vec3(3.0f,3.0f,0.0f);
@@ -483,23 +386,6 @@ int main() {
         sperspective.setMat4("projection", projection);
         
         glm::mat4 model = glm::mat4(1.0f);
-        /*
-        // Draw plane
-        glBindVertexArray(VAO_plane);
-        
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, -cubeSize / 2));
-        glUniformMatrix4fv(glGetUniformLocation(sperspective.ID, "model"), 1, GL_FALSE, &model[0][0]);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        */
-        /*
-        // Draw Sphere
-        glBindVertexArray(VAO_sphere);
-        model = glm::mat4(1.0f);
-
-        model = glm::translate(model, curState.position);
-        sperspective.setMat4("model", model);
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ball.indices.size()), GL_UNSIGNED_INT, 0);
-        */
         sperspective.setMat4("model", model);
 
         /*
@@ -525,20 +411,10 @@ int main() {
 
         */
 
-        /* 
-        // Cube Drawing
-        model = glm::mat4(1.0f);
-        sperspective.setMat4("model", model);
 
-        glBindVertexArray(VAO_cube);
-        glDrawArrays(GL_LINE_STRIP, 0, 16);
-        */
         // all drawings done lets do some imgui stuff
 
         ImGui::Begin("Object Settings");
-        bool sliderDim = ImGui::SliderInt2("Stacks and Sectors", dims, 3, 128);
-        bool sliderRad = ImGui::SliderFloat("Radius", &radius, .01f, 20.f);
-        bool sliderCube = ImGui::SliderFloat("Cube Size", &cubeSize, .01f, 20.f);
         ImGui::End();
 
         ImGui::Begin("Render Setting");
@@ -653,33 +529,6 @@ int main() {
             t_sim = std::chrono::steady_clock::now();
         }
 
-        if (sliderDim || sliderRad) {
-            ball.setDims(dims[0], dims[1], radius);
-
-            glBindVertexArray(VAO_sphere);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_pos);
-            glBufferData(GL_ARRAY_BUFFER, ball.vertices.size() * sizeof(float), &ball.vertices[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_normal);
-            glBufferData(GL_ARRAY_BUFFER, ball.normals.size() * sizeof(float), &ball.normals[0], GL_DYNAMIC_DRAW);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, ball.indices.size() * sizeof(float), &ball.indices[0], GL_DYNAMIC_DRAW);
-        }
-
-        if (sliderCube) {
-            generateWireframeCube(cubeSize, cubevertices);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices), cubevertices, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-        }
-
         if (sliderPS) {
             glPointSize(pointSize);
         }
@@ -698,9 +547,6 @@ int main() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    glDeleteVertexArrays(1, &VAO_sphere);
-    glDeleteBuffers(1, &VBO_pos);
-    glDeleteBuffers(1, &VBO_normal);
 
     glfwTerminate();
 
