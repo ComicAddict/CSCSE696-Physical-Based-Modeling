@@ -71,99 +71,12 @@ struct particleGenerator { //for now this is a directional generator, gonna add 
 };
 
 struct state {
-    float m;
-    glm::vec3 position;
-    glm::vec3 velocity;
-    float windFactor;
-    glm::vec3 wind;
-    float airResistanceFactor;
-    glm::vec3 gravity;
+    std::vector<glm::vec3*> p;
+    std::vector<glm::vec3*> v;
 };
 
 void setInitConditions(state& cur, state& init) {
     cur = init;
-}
-
-void setAcceleration(state& curState, glm::vec3& acc) {
-    glm::vec3 gravity = curState.m * curState.gravity;
-    glm::vec3 airResistance = -curState.airResistanceFactor * curState.velocity;
-    glm::vec3 totalForce = gravity + curState.windFactor * curState.wind + airResistance;
-    acc = totalForce / curState.m;
-}
-
-void integrate(state& curState, state& nextState, glm::vec3& acc, float& h) {
-    nextState.m = curState.m;
-    nextState.airResistanceFactor = curState.airResistanceFactor;
-    nextState.gravity = curState.gravity;
-    nextState.wind = curState.wind;
-    nextState.windFactor = curState.windFactor;
-    nextState.velocity = curState.velocity + acc * h;
-    nextState.position = curState.position + curState.velocity * h;
-}
-
-bool checkCollision(state& curState, state& nextState, const float radius, const float cubeSize, glm::vec3& hitNormal) {
-    float hitPoint = (cubeSize / 2) - radius;
-    if (nextState.position.x > hitPoint) {
-        hitNormal = glm::vec3(-1.0, 0.0, 0.0);
-    }
-    else if (nextState.position.x < -hitPoint) {
-        hitNormal = glm::vec3(1.0, 0.0, 0.0);
-    }
-    else if (nextState.position.y > hitPoint) {
-        hitNormal = glm::vec3(0.0, -1.0, 0.0);
-    }
-    else if (nextState.position.y < -hitPoint) {
-        hitNormal = glm::vec3(0.0, 1.0, 0.0);
-    }
-    else if (nextState.position.z > hitPoint) {
-        hitNormal = glm::vec3(0.0, 0.0, -1.0);
-    }
-    else if (nextState.position.z < -hitPoint) {
-        hitNormal = glm::vec3(0.0, 0.0, 1.0);
-    }
-    else { return false; }
-    return true;
-}
-
-void findFraction(state& curState, state& nextState, const float radius, const float cubeSize, float& fraction) {
-    float hitPoint = (cubeSize / 2) - radius;
-    float curHeight;
-    if (abs(nextState.position.x) > hitPoint) {
-        curHeight = hitPoint - abs(curState.position.x);
-        fraction = curHeight / (nextState.position.x - curState.position.x);
-    }
-    else if (abs(nextState.position.y) > hitPoint) {
-        curHeight = hitPoint - abs(curState.position.y);
-        fraction = curHeight / (nextState.position.y - curState.position.y);
-    }
-    else if (abs(nextState.position.z) > hitPoint) {
-        curHeight = hitPoint - abs(curState.position.z);
-        fraction = curHeight / (nextState.position.z - curState.position.z);
-    }
-#ifdef _DEBUG
-    printf("Current Distance from Surface: %f, fraction time: %f\n", curHeight, fraction);
-#endif // DEBUG
-
-
-}
-
-void collResponse(state& collState, state& nextState, glm::vec3 hitNormal, float& elas, float& mu) {
-    nextState.position = collState.position;
-    glm::vec3 VN = hitNormal * glm::dot(collState.velocity, hitNormal);
-    glm::vec3 VT = collState.velocity - VN;
-    glm::vec3 nextVT = VT;
-    if (glm::length(VT) > 0.01)
-        glm::vec3 nextVT = VT - glm::normalize(VT) * fmin(mu * glm::length(VN), glm::length(VT));
-    glm::vec3 nextVN = -elas * VN;
-
-#ifdef _DEBUG
-    printf("    VT: %f,%f,%f\n", VT.x, VT.y, VT.z);
-    printf("    VN: %f,%f,%f\n", VN.x, VN.y, VN.z);
-    printf("    Next VT: %f,%f,%f\n", nextVT.x, nextVT.y, nextVT.z);
-    printf("    Next VN: %f,%f,%f\n", nextVN.x, nextVN.y, nextVN.z);
-#endif // _DEBUG
-
-    nextState.velocity = nextVT + nextVN;
 }
 
 void generateWireframeCube(float cubeSize, float* vertices) {
@@ -289,6 +202,8 @@ int main() {
     VertexBuffer vbParticles(&particleGPU[0], sizeof(particle_gpu) * particleGPU.size());
     particleShaderSetup();
 
+    state curState;
+
     particleGenerator pgen1;
     glGenVertexArrays(1, &pgen1.vao);
     pgen1.p = glm::vec3(10.0,10.0,10.0);
@@ -300,10 +215,21 @@ int main() {
         glm::gaussRand(pgen1.p,glm::vec3(.1,0.1,0.1)),   // position
         glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
     ); //dummy first particle
+    pgen1.pcpus.push_back({
+        glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(1.0,1.0,1.0)),
+        0.1,
+        120.0,
+        0.1,
+        0.1,
+        0.0
+        });
+
+    curState.p.push_back(&pgen1.pgpus[0].p);
+    curState.v.push_back(&pgen1.pcpus[0].v);
+
     glBindVertexArray(pgen1.vao);
     VertexBuffer pgen1vb(&pgen1.pgpus[0],sizeof(particle_gpu));
     particleShaderSetup();
-
 
     particleGenerator pgen2;
     glGenVertexArrays(1, &pgen2.vao);
@@ -316,6 +242,17 @@ int main() {
         glm::gaussRand(pgen2.p,glm::vec3(.1,0.1,0.1)),   // position
         glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
     ); //dummy first particle
+    pgen2.pcpus.push_back({
+        glm::gaussRand(pgen2.v + pgen2.d,glm::vec3(1.0,1.0,1.0)),
+        0.1,
+        120.0,
+        0.1,
+        0.1,
+        0.0
+        });
+    curState.p.push_back(&pgen2.pgpus[0].p);
+    curState.v.push_back(&pgen2.pcpus[0].v);
+
     glBindVertexArray(pgen2.vao);
     VertexBuffer pgen2vb(&pgen2.pgpus[0], sizeof(particle_gpu));
     particleShaderSetup();
@@ -341,9 +278,6 @@ int main() {
     float f;
     float t = 0.0f;
     float t_max = 120.0f;
-    state curState;
-    state nextState;
-    state collState;
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -355,16 +289,8 @@ int main() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     state init;
-    init.m = 1.0f;
-    init.airResistanceFactor = 0;
-    init.gravity = glm::vec3(0.0, 0.0, -10.0);
-    init.position = glm::vec3(0.0, 0.0, 3.0);
-    init.velocity = glm::vec3(0.0, 0.0, 0.0);
-    init.wind = glm::vec3(0.0, 0.0, 0.0);
-    init.windFactor = 0;
 
     float timestep = h;
-    setInitConditions(curState, init);
     bool stepSim = false;
     float timeToDraw = 0.0f;
     glm::vec3 posBuf;
@@ -459,7 +385,6 @@ int main() {
             stepSim = true;
         }
         if (ImGui::Button("Reset")) {
-            setInitConditions(curState, init);
             t = 0;
             t_sim = std::chrono::steady_clock::now();
             /*
@@ -484,13 +409,6 @@ int main() {
         ImGui::InputFloat("Sigma", &sigma);
         */
         ImGui::Text("Initial Conditions");
-        ImGui::InputFloat("Mass", &init.m);
-        ImGui::InputFloat3("Gravity", glm::value_ptr(init.gravity));
-        ImGui::InputFloat3("Position", glm::value_ptr(init.position));
-        ImGui::InputFloat3("Velocity", glm::value_ptr(init.velocity));
-        ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
-        ImGui::InputFloat("Wind Factor", &init.windFactor);
-        ImGui::InputFloat("Air Resistance Factor", &init.airResistanceFactor);
         if (ImGui::Button("Randomize")) {
         }
 
@@ -510,19 +428,46 @@ int main() {
                     glm::gaussRand(pgen1.p,glm::vec3(.01,0.1,0.1)),   // position
                     glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
                 ); 
+                pgen1.pcpus.push_back({
+                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(1.0,1.0,1.0)),
+                    0.1,
+                    120.0,
+                    0.1,
+                    0.1,
+                    0.0
+                    });
                 pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pgpus.size());
+                curState.p.push_back(&pgen1.pgpus.back().p);
+                curState.v.push_back(&pgen1.pcpus.back().v);
             }
             if (pgen2.t > pgen2.P) {
                 pgen2.t = 0.0f;
                 pgen2.pgpus.push_back({
                     glm::gaussRand(pgen2.p,glm::vec3(.01,0.1,0.1)),   // position
                     glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
-                ); 
+                );
+                pgen2.pcpus.push_back({
+                    glm::gaussRand(pgen2.v + pgen2.d,glm::vec3(1.0,1.0,1.0)),
+                    0.1,
+                    120.0,
+                    0.1,
+                    0.1,
+                    0.0
+                    });
                 pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pgpus.size());
+                curState.p.push_back(&pgen2.pgpus.back().p);
+                curState.v.push_back(&pgen2.pcpus.back().v);
             }
             //update generator locations
             pgen1.p += pgen1.v * deltaTimeFrame;
             pgen2.p += pgen2.v * deltaTimeFrame;
+
+            state nextState;
+            //integration
+            for (int i = 0; i < curState.p.size(); i++) {
+                *curState.p[i] += (*curState.v[i]) * deltaTimeFrame;
+            }
+            
             /*
             // Lorenz integration, position based dynamics :D
             //lets do some lorenz stuff first
