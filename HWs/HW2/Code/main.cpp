@@ -21,6 +21,8 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 
+#define MAX_PARTICLE_PER_GENERATOR 1000
+
 int main();
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -61,18 +63,19 @@ struct particle_cpu {
 
 struct particleGenerator { //for now this is a directional generator, gonna add polygonal ones in the future put have to refactor etc
     unsigned int vao;
-    std::vector<particle_gpu> pgpus;
-    std::vector<particle_cpu> pcpus;
+    particle_gpu pgpus[MAX_PARTICLE_PER_GENERATOR];
+    particle_cpu pcpus[MAX_PARTICLE_PER_GENERATOR];
     glm::vec3 p; //position
     glm::vec3 v; //velocity
     glm::vec3 d; //direction
     float P; // period
     float t; // time
+    int pnum = 0;
 };
 
 struct state {
-    std::vector<glm::vec3> p;
-    std::vector<glm::vec3> v;
+    std::vector<float> p;
+    std::vector<float> v;
 };
 
 void setInitConditions(state& cur, state& init) {
@@ -175,33 +178,7 @@ int main() {
     glViewport(0, 0, 1920, 1080);
 
     //TODO generate particles, at this point these are just state vector
-    std::vector<particle_gpu> particleGPU;
-    std::vector<particle_cpu> particleCPU;
-
-    const int particle_num = 1000;
-    for (int i = 0; i < particle_num; i++) {
-        particle_gpu pGPU = {
-            glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(2.0,2.0,2.0)),   // position
-            glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0))  // color
-        };
-        particle_cpu pCPU = {
-            glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(10.0,10.0,10.0)),   // velocity
-            glm::gaussRand(1.0,15.0),                                           // mass
-            glm::gaussRand(120.0,10.0),                                         // lifespan
-            glm::gaussRand(0.1,0.9),                                            //  COR
-            glm::gaussRand(0.1,0.9),                                            // COF
-            0.0f                                                                // age
-        };
-        particleGPU.push_back(pGPU);
-        particleCPU.push_back(pCPU);
-    }
-        unsigned int vaoPar;
-    glGenVertexArrays(1, &vaoPar);
-    glBindVertexArray(vaoPar);
-
-    VertexBuffer vbParticles(&particleGPU[0], sizeof(particle_gpu) * particleGPU.size());
-    particleShaderSetup();
-
+    
     state curState;
 
     particleGenerator pgen1;
@@ -211,21 +188,6 @@ int main() {
     pgen1.d = glm::vec3(1.0, 1.0, 1.0);
     pgen1.P = .2;
     pgen1.t = 0.0f;
-    pgen1.pgpus.push_back({ 
-        glm::gaussRand(pgen1.p,glm::vec3(.1,0.1,0.1)),   // position
-        glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
-    ); //dummy first particle
-    pgen1.pcpus.push_back({
-        glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(1.0,1.0,1.0)),
-        0.1,
-        120.0,
-        0.1,
-        0.1,
-        0.0
-        });
-
-    curState.p.push_back(pgen1.pgpus[0].p);
-    curState.v.push_back(pgen1.pcpus[0].v);
 
     glBindVertexArray(pgen1.vao);
     VertexBuffer pgen1vb(&pgen1.pgpus[0],sizeof(particle_gpu));
@@ -238,20 +200,6 @@ int main() {
     pgen2.d = glm::vec3(-1.0, -1.0, -1.0);
     pgen2.P = 1.0;
     pgen2.t = 0.0;
-    pgen2.pgpus.push_back({
-        glm::gaussRand(pgen2.p,glm::vec3(.1,0.1,0.1)),   // position
-        glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
-    ); //dummy first particle
-    pgen2.pcpus.push_back({
-        glm::gaussRand(pgen2.v + pgen2.d,glm::vec3(1.0,1.0,1.0)),
-        0.1,
-        120.0,
-        0.1,
-        0.1,
-        0.0
-        });
-    curState.p.push_back(pgen2.pgpus[0].p);
-    curState.v.push_back(pgen2.pcpus[0].v);
 
     glBindVertexArray(pgen2.vao);
     VertexBuffer pgen2vb(&pgen2.pgpus[0], sizeof(particle_gpu));
@@ -332,10 +280,10 @@ int main() {
         particleShader.setMat4("projection", projection);
         
         glBindVertexArray(pgen1.vao);
-        glDrawArrays(GL_POINTS, 0, pgen1.pgpus.size());
+        glDrawArrays(GL_POINTS, 0, pgen1.pnum);
 
         glBindVertexArray(pgen2.vao);
-        glDrawArrays(GL_POINTS, 0, pgen2.pgpus.size());
+        glDrawArrays(GL_POINTS, 0, pgen2.pnum);
         /*
         // lorenz drawing 
         glBindVertexArray(VAO_particles);
@@ -422,53 +370,59 @@ int main() {
         if ((timeToSimulate || stepSim)) {//secPassed.count() >= h  &&
             pgen1.t += deltaTimeFrame;
             pgen2.t += deltaTimeFrame;
-            if (pgen1.t > pgen1.P) {
+            if (pgen1.t > pgen1.P && pgen1.pnum < MAX_PARTICLE_PER_GENERATOR) {
                 pgen1.t = 0.0f;
-                pgen1.pgpus.push_back({
-                    glm::gaussRand(pgen1.p,glm::vec3(.01,0.1,0.1)),   // position
-                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
-                ); 
-                pgen1.pcpus.push_back({
-                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(1.0,1.0,1.0)),
+                pgen1.pgpus[pgen1.pnum] = {
+                    glm::gaussRand(pgen1.p,glm::vec3(.01,0.11,0.01)),   // position
+                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }; 
+                pgen1.pcpus[pgen1.pnum] = {
+                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(0.5,0.5,0.5)),
                     0.1,
                     120.0,
                     0.1,
                     0.1,
                     0.0
-                    });
-                pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pgpus.size());
-                curState.p.push_back(pgen1.pgpus.back().p);
-                curState.v.push_back(pgen1.pcpus.back().v);
+                    };
+                pgen1.pnum += 1;
+                glBindVertexArray(pgen1.vao);
+                pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pnum);
+                //curState.p.push_back(&pgen1.pgpus->p[pgen1.pnum]);
+                //curState.v.push_back(&pgen1.pcpus->v[pgen1.pnum]);
             }
-            if (pgen2.t > pgen2.P) {
+            if (pgen2.t > pgen2.P && pgen1.pnum < MAX_PARTICLE_PER_GENERATOR) {
                 pgen2.t = 0.0f;
-                pgen2.pgpus.push_back({
-                    glm::gaussRand(pgen2.p,glm::vec3(.01,0.1,0.1)),   // position
-                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
-                );
-                pgen2.pcpus.push_back({
-                    glm::gaussRand(pgen2.v + pgen2.d,glm::vec3(1.0,1.0,1.0)),
+                pgen2.pgpus[pgen2.pnum] = {
+                    glm::gaussRand(pgen2.p,glm::vec3(.01,0.01,0.01)),   // position
+                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) };
+                pgen2.pcpus[pgen2.pnum] = {
+                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(0.5,0.5,0.5)),
                     0.1,
                     120.0,
                     0.1,
                     0.1,
                     0.0
-                    });
-                pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pgpus.size());
+                };
+                pgen2.pnum += 1;
+                glBindVertexArray(pgen2.vao);
+                pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pnum);
                 //curState.p.push_back(pgen2.pgpus.back().p);
                 //curState.v.push_back(pgen2.pcpus.back().v);
             }
+            pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pnum);
+            pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pnum);
             //update generator locations
             pgen1.p += pgen1.v * deltaTimeFrame;
             pgen2.p += pgen2.v * deltaTimeFrame;
 
             state nextState;
             //integration
-            for (int i = 0; i < pgen1.pcpus.size(); i++) {
-                pgen1.pgpus[i].p += pgen1.pcpus[i].v* deltaTimeFrame;
+            for (int i = 0; i < pgen1.pnum; i++) {
+                printf("updating for 1st pgen");
+                pgen1.pgpus[i].p += pgen1.pcpus[i].v * deltaTimeFrame;
             }
             
-            for (int i = 0; i < pgen2.pcpus.size(); i++) {
+            for (int i = 0; i < pgen2.pnum; i++) {
+                printf("updating for 2nd pgen");
                 pgen2.pgpus[i].p += pgen2.pcpus[i].v * deltaTimeFrame;
             }
 
