@@ -59,14 +59,15 @@ struct particle_cpu {
     float age;
 };
 
-struct particleGenerator {
+struct particleGenerator { //for now this is a directional generator, gonna add polygonal ones in the future put have to refactor etc
     unsigned int vao;
     std::vector<particle_gpu> pgpus;
     std::vector<particle_cpu> pcpus;
     glm::vec3 p; //position
     glm::vec3 v; //velocity
     glm::vec3 d; //direction
-    float f; // frequency
+    float P; // period
+    float t; // time
 };
 
 struct state {
@@ -220,6 +221,13 @@ struct collider {
     glm::vec3 v[3];
 };
 
+void particleShaderSetup() {
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); // pos
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float))); // color
+}
+
 int main() {
 
     glfwInit();
@@ -261,7 +269,7 @@ int main() {
     for (int i = 0; i < particle_num; i++) {
         particle_gpu pGPU = {
             glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(2.0,2.0,2.0)),   // position
-            glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)),  // color
+            glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0))  // color
         };
         particle_cpu pCPU = {
             glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(10.0,10.0,10.0)),   // velocity
@@ -279,10 +287,39 @@ int main() {
     glBindVertexArray(vaoPar);
 
     VertexBuffer vbParticles(&particleGPU[0], sizeof(particle_gpu) * particleGPU.size());
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0); // pos
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3*sizeof(float))); // color
+    particleShaderSetup();
+
+    particleGenerator pgen1;
+    glGenVertexArrays(1, &pgen1.vao);
+    pgen1.p = glm::vec3(10.0,10.0,10.0);
+    pgen1.v = glm::vec3(0.0, -1.0, 0.0);
+    pgen1.d = glm::vec3(1.0, 1.0, 1.0);
+    pgen1.P = .2;
+    pgen1.t = 0.0f;
+    pgen1.pgpus.push_back({ 
+        glm::gaussRand(pgen1.p,glm::vec3(.1,0.1,0.1)),   // position
+        glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
+    ); //dummy first particle
+    glBindVertexArray(pgen1.vao);
+    VertexBuffer pgen1vb(&pgen1.pgpus[0],sizeof(particle_gpu));
+    particleShaderSetup();
+
+
+    particleGenerator pgen2;
+    glGenVertexArrays(1, &pgen2.vao);
+    pgen2.p = glm::vec3(-10.0, -10.0, -10.0);
+    pgen2.v = glm::vec3(0.0, 1.0, 0.0);
+    pgen2.d = glm::vec3(-1.0, -1.0, -1.0);
+    pgen2.P = 1.0;
+    pgen2.t = 0.0;
+    pgen2.pgpus.push_back({
+        glm::gaussRand(pgen2.p,glm::vec3(.1,0.1,0.1)),   // position
+        glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
+    ); //dummy first particle
+    glBindVertexArray(pgen2.vao);
+    VertexBuffer pgen2vb(&pgen2.pgpus[0], sizeof(particle_gpu));
+    particleShaderSetup();
+
 
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl", "../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
@@ -357,7 +394,7 @@ int main() {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
+        
         //end of imgui init stuff
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
@@ -365,11 +402,14 @@ int main() {
 
         glfwGetWindowSize(window, &width, &height);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.01f, 400.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.01f, 1000.0f);
         particleShader.setMat4("projection", projection);
         
-        glBindVertexArray(vaoPar);
-        glDrawArrays(GL_POINTS, 0, particleGPU.size());
+        glBindVertexArray(pgen1.vao);
+        glDrawArrays(GL_POINTS, 0, pgen1.pgpus.size());
+
+        glBindVertexArray(pgen2.vao);
+        glDrawArrays(GL_POINTS, 0, pgen2.pgpus.size());
         /*
         // lorenz drawing 
         glBindVertexArray(VAO_particles);
@@ -462,7 +502,27 @@ int main() {
         //printf("Second Passed from last sim: %f\n ,simTime in sim: %f\n", secPassed, t);
 
         if ((timeToSimulate || stepSim)) {//secPassed.count() >= h  &&
-                        
+            pgen1.t += deltaTimeFrame;
+            pgen2.t += deltaTimeFrame;
+            if (pgen1.t > pgen1.P) {
+                pgen1.t = 0.0f;
+                pgen1.pgpus.push_back({
+                    glm::gaussRand(pgen1.p,glm::vec3(.01,0.1,0.1)),   // position
+                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
+                ); 
+                pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pgpus.size());
+            }
+            if (pgen2.t > pgen2.P) {
+                pgen2.t = 0.0f;
+                pgen2.pgpus.push_back({
+                    glm::gaussRand(pgen2.p,glm::vec3(.01,0.1,0.1)),   // position
+                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }
+                ); 
+                pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pgpus.size());
+            }
+            //update generator locations
+            pgen1.p += pgen1.v * deltaTimeFrame;
+            pgen2.p += pgen2.v * deltaTimeFrame;
             /*
             // Lorenz integration, position based dynamics :D
             //lets do some lorenz stuff first
@@ -479,7 +539,7 @@ int main() {
             */
 
             stepSim = false;
-
+            t += deltaTimeFrame;
             t_sim = std::chrono::steady_clock::now();
         }
 
