@@ -455,8 +455,8 @@ int main() {
                     0.0
                     });
                 pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pgpus.size());
-                curState.p.push_back(pgen2.pgpus.back().p);
-                curState.v.push_back(pgen2.pcpus.back().v);
+                //curState.p.push_back(pgen2.pgpus.back().p);
+                //curState.v.push_back(pgen2.pcpus.back().v);
             }
             //update generator locations
             pgen1.p += pgen1.v * deltaTimeFrame;
@@ -464,10 +464,14 @@ int main() {
 
             state nextState;
             //integration
-            for (int i = 0; i < curState.p.size(); i++) {
-                curState.p[i] += (curState.v[i]) * deltaTimeFrame;
+            for (int i = 0; i < pgen1.pcpus.size(); i++) {
+                pgen1.pgpus[i].p += pgen1.pcpus[i].v* deltaTimeFrame;
             }
             
+            for (int i = 0; i < pgen2.pcpus.size(); i++) {
+                pgen2.pgpus[i].p += pgen2.pcpus[i].v * deltaTimeFrame;
+            }
+
             /*
             // Lorenz integration, position based dynamics :D
             //lets do some lorenz stuff first
