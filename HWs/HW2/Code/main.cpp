@@ -45,9 +45,28 @@ float deltaTimeFrame = .0f;
 float lastFrame = .0f;
 bool timeToSimulate = false;
 
-struct Particle {
+struct particle_gpu {
     glm::vec3 p;
+    glm::vec3 c;
+};
+
+struct particle_cpu {
     glm::vec3 v;
+    float m;
+    float LS;
+    float COF;
+    float COR;
+    float age;
+};
+
+struct particleGenerator {
+    unsigned int vao;
+    std::vector<particle_gpu> pgpus;
+    std::vector<particle_cpu> pcpus;
+    glm::vec3 p; //position
+    glm::vec3 v; //velocity
+    glm::vec3 d; //direction
+    float f; // frequency
 };
 
 struct state {
@@ -235,57 +254,40 @@ int main() {
     glViewport(0, 0, 1920, 1080);
 
     //TODO generate particles, at this point these are just state vector
+    std::vector<particle_gpu> particleGPU;
+    std::vector<particle_cpu> particleCPU;
+
     const int particle_num = 1000;
-
-    glm::vec3 particles[particle_num];
-    glm::vec3 norm[particle_num];
     for (int i = 0; i < particle_num; i++) {
-        particles[i] = glm::vec3(0.0f,0.0f,20.0f) + glm::ballRand<float>(20.0f);
-        norm[i] = glm::vec3(0.0f,0.0f,1.0f);
+        particle_gpu pGPU = {
+            glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(2.0,2.0,2.0)),   // position
+            glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)),  // color
+        };
+        particle_cpu pCPU = {
+            glm::gaussRand(glm::vec3(0.0,0.0,0.0),glm::vec3(10.0,10.0,10.0)),   // velocity
+            glm::gaussRand(1.0,15.0),                                           // mass
+            glm::gaussRand(120.0,10.0),                                         // lifespan
+            glm::gaussRand(0.1,0.9),                                            //  COR
+            glm::gaussRand(0.1,0.9),                                            // COF
+            0.0f                                                                // age
+        };
+        particleGPU.push_back(pGPU);
+        particleCPU.push_back(pCPU);
     }
+        unsigned int vaoPar;
+    glGenVertexArrays(1, &vaoPar);
+    glBindVertexArray(vaoPar);
 
-    unsigned int VAO_particles;
-    glGenVertexArrays(1, &VAO_particles);
-
-    glBindVertexArray(VAO_particles);
-
-    VertexBuffer vbParPos(particles, 3 * sizeof(float));
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    VertexBuffer vbParticles(&particleGPU[0], sizeof(particle_gpu) * particleGPU.size());
     glEnableVertexAttribArray(0);
-
-    VertexBuffer vbParNorm(norm, 3 * sizeof(float));
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0); // pos
     glEnableVertexAttribArray(1);
-
-    std::vector<glm::fvec3> path_pos;
-    std::vector<glm::fvec3> path_norm;
-    path_pos.push_back(particles[0]);
-    path_norm.push_back(norm[0]);
-    unsigned int VAO_path;
-    glGenVertexArrays(1, &VAO_path);
-
-    unsigned int VBO_path_pos;
-    glGenBuffers(1, &VBO_path_pos);
-
-    unsigned int VBO_path_norm;
-    glGenBuffers(1, &VBO_path_norm);
-
-    glBindVertexArray(VAO_path);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_path_pos);
-    glBufferData(GL_ARRAY_BUFFER, path_pos.size() * sizeof(float), &path_pos[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_path_norm);
-    glBufferData(GL_ARRAY_BUFFER, path_norm.size() * sizeof(float), &path_norm[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(3*sizeof(float))); // color
 
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl", "../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
     Shader fperspective("../../../HWs/HW#1/Code/shaders/vert_flat.glsl", "../../../HWs/HW#1/Code/shaders/frag_flat.glsl");
+    Shader particleShader("../../../HWs/HW2/Code/shaders/vertParticle.glsl", "../../../HWs/HW2/Code/shaders/fragParticle.glsl");
 
     sperspective.use();
 
@@ -296,7 +298,6 @@ int main() {
     glLineWidth(lineSize);
 
     glEnable(GL_DEPTH_TEST);
-
 
     int width, height;
     float h = 0.01f;
@@ -331,8 +332,6 @@ int main() {
     float timeToDraw = 0.0f;
     glm::vec3 posBuf;
 
-    float elas = 0.1f;
-    float mu = 0.4f;
     std::chrono::steady_clock::time_point t_sim = std::chrono::steady_clock::now();
 
     /*
@@ -341,24 +340,8 @@ int main() {
     float rho = 28.0f;
     float beta = 8.0f / 3.0f;
     */
+    particleShader.use();
 
-    std::vector<glm::vec3> position;
-    std::vector<glm::vec3> velocity;
-    std::vector<glm::vec3> acceleration;
-
-    //particle generation for now it is static
-    // TODO: add mouse callback for particle generation
-    int np = 1000;
-    for (int i = 0; i < np; i++) {
-        position.push_back(glm::vec3(0.0f,0.0f,10.0f) + glm::ballRand(5.0f));
-        velocity.push_back(glm::ballRand(3.0f));
-    }
-    
-    //TODO: add colliders
-    collider colls;
-    colls.v[0] = glm::vec3(3.0f,3.0f,0.0f);
-    //TODO: add an obj importer for this maybe
-    
     while (!glfwWindowShouldClose(window))
     {
         // time handling for input, should not interfere with this
@@ -378,16 +361,15 @@ int main() {
         //end of imgui init stuff
 
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
-        sperspective.setMat4("view", view);
+        particleShader.setMat4("view", view);
 
         glfwGetWindowSize(window, &width, &height);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 400.0f);
-        sperspective.setMat4("projection", projection);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.01f, 400.0f);
+        particleShader.setMat4("projection", projection);
         
-        glm::mat4 model = glm::mat4(1.0f);
-        sperspective.setMat4("model", model);
-
+        glBindVertexArray(vaoPar);
+        glDrawArrays(GL_POINTS, 0, particleGPU.size());
         /*
         // lorenz drawing 
         glBindVertexArray(VAO_particles);
@@ -469,8 +451,6 @@ int main() {
         ImGui::InputFloat3("Wind", glm::value_ptr(init.wind));
         ImGui::InputFloat("Wind Factor", &init.windFactor);
         ImGui::InputFloat("Air Resistance Factor", &init.airResistanceFactor);
-        ImGui::InputFloat("Elasticity", &elas);
-        ImGui::InputFloat("Friction", &mu);
         if (ImGui::Button("Randomize")) {
         }
 
@@ -482,11 +462,7 @@ int main() {
         //printf("Second Passed from last sim: %f\n ,simTime in sim: %f\n", secPassed, t);
 
         if ((timeToSimulate || stepSim)) {//secPassed.count() >= h  &&
-            #ifdef _DEBUG
-            //printf("simulating, Time: %f, t_sim: %f, deltaFrameTime: %f\n", t, t_sim.time_since_epoch(), deltaTimeFrame);
-            //printf("    Current Pos: %f, %f, %f     Current Velocity: %f, %f, %f",curState.position.x, curState.position.y, curState.position.z, curState.velocity.x, curState.velocity.y, curState.velocity.z);
-            #endif // _DEBUG
-
+                        
             /*
             // Lorenz integration, position based dynamics :D
             //lets do some lorenz stuff first
@@ -502,28 +478,6 @@ int main() {
             }
             */
 
-            timestep = h;
-            //integrate(curState, nextState, acc_ball, timestep);
-
-            glm::vec3 hitNormal = glm::vec3(1.0, 0.0, 0.0);
-            /*
-            if (checkCollision(curState, nextState, radius, cubeSize, hitNormal)) { //for checking collision we can create a collider class with taking vertices of the shape
-                findFraction(curState, nextState, radius, cubeSize, f);
-                timestep = f * h;
-                integrate(curState, collState, acc_ball, timestep);
-
-                #ifdef _DEBUG
-                printf("There is a collision at: %f,%f,%f, fraction timestep: %f\n", collState.position.x, collState.position.y, collState.position.z, f);
-                #endif // _DEBUG
-
-                collResponse(collState, nextState, hitNormal, elas, mu);
-                t += timestep;
-            }
-            else {
-                t += timestep;
-            }
-            */
-            //curState = nextState;
             stepSim = false;
 
             t_sim = std::chrono::steady_clock::now();
