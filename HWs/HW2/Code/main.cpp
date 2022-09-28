@@ -71,8 +71,8 @@ struct particleGenerator { //for now this is a directional generator, gonna add 
 };
 
 struct state {
-    std::vector<glm::vec3*> p;
-    std::vector<glm::vec3*> v;
+    std::vector<glm::vec3> p;
+    std::vector<glm::vec3> v;
 };
 
 void setInitConditions(state& cur, state& init) {
@@ -224,8 +224,8 @@ int main() {
         0.0
         });
 
-    curState.p.push_back(&pgen1.pgpus[0].p);
-    curState.v.push_back(&pgen1.pcpus[0].v);
+    curState.p.push_back(pgen1.pgpus[0].p);
+    curState.v.push_back(pgen1.pcpus[0].v);
 
     glBindVertexArray(pgen1.vao);
     VertexBuffer pgen1vb(&pgen1.pgpus[0],sizeof(particle_gpu));
@@ -250,8 +250,8 @@ int main() {
         0.1,
         0.0
         });
-    curState.p.push_back(&pgen2.pgpus[0].p);
-    curState.v.push_back(&pgen2.pcpus[0].v);
+    curState.p.push_back(pgen2.pgpus[0].p);
+    curState.v.push_back(pgen2.pcpus[0].v);
 
     glBindVertexArray(pgen2.vao);
     VertexBuffer pgen2vb(&pgen2.pgpus[0], sizeof(particle_gpu));
@@ -437,8 +437,8 @@ int main() {
                     0.0
                     });
                 pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pgpus.size());
-                curState.p.push_back(&pgen1.pgpus.back().p);
-                curState.v.push_back(&pgen1.pcpus.back().v);
+                curState.p.push_back(pgen1.pgpus.back().p);
+                curState.v.push_back(pgen1.pcpus.back().v);
             }
             if (pgen2.t > pgen2.P) {
                 pgen2.t = 0.0f;
@@ -455,8 +455,8 @@ int main() {
                     0.0
                     });
                 pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pgpus.size());
-                curState.p.push_back(&pgen2.pgpus.back().p);
-                curState.v.push_back(&pgen2.pcpus.back().v);
+                curState.p.push_back(pgen2.pgpus.back().p);
+                curState.v.push_back(pgen2.pcpus.back().v);
             }
             //update generator locations
             pgen1.p += pgen1.v * deltaTimeFrame;
@@ -465,7 +465,7 @@ int main() {
             state nextState;
             //integration
             for (int i = 0; i < curState.p.size(); i++) {
-                *curState.p[i] += (*curState.v[i]) * deltaTimeFrame;
+                curState.p[i] += (curState.v[i]) * deltaTimeFrame;
             }
             
             /*
