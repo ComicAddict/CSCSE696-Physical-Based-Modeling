@@ -21,7 +21,8 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 
-#define MAX_PARTICLE_PER_GENERATOR 1000
+#define MAX_PARTICLE_PER_GENERATOR 10000
+#define MAX_PARTICLES 100000
 
 int main();
 
@@ -30,8 +31,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int modsdouble);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void RenderUI();
-glm::vec3 camPos = glm::vec3(5.0f, 5.0f, 0.0f);
-glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 camPos = glm::vec3(10.0f, 10.0f, 10.0f);
+glm::vec3 camFront = glm::vec3(-1.0f, -1.0f, -1.0f);
 glm::vec3 camUp = glm::vec3(0.0f, 0.0f, 1.0f);
 float sensitivity = 5.0f;
 bool focused = false;
@@ -63,8 +64,8 @@ struct particle_cpu {
 
 struct particleGenerator { //for now this is a directional generator, gonna add polygonal ones in the future put have to refactor etc
     unsigned int vao;
-    particle_gpu pgpus[MAX_PARTICLE_PER_GENERATOR];
-    particle_cpu pcpus[MAX_PARTICLE_PER_GENERATOR];
+    particle_gpu* pgpus;
+    particle_cpu* pcpus;
     glm::vec3 p; //position
     glm::vec3 v; //velocity
     glm::vec3 d; //direction
@@ -73,14 +74,15 @@ struct particleGenerator { //for now this is a directional generator, gonna add 
     int pnum = 0;
 };
 
-struct state {
-    std::vector<float> p;
-    std::vector<float> v;
+struct triangle {
+    glm::vec3 v1;
+    glm::vec3 v2;
+    glm::vec3 v3;
 };
 
-void setInitConditions(state& cur, state& init) {
-    cur = init;
-}
+struct collider {
+    triangle* triangles;
+};
 
 void generateWireframeCube(float cubeSize, float* vertices) {
     float cubeVertices[] = {
@@ -133,16 +135,13 @@ void processInput(GLFWwindow* window)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-struct collider {
-    glm::vec3 v[3];
-};
-
 void particleShaderSetup() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); // pos
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float))); // color
 }
+
 
 int main() {
 
@@ -179,10 +178,32 @@ int main() {
 
     //TODO generate particles, at this point these are just state vector
     
-    state curState;
+    
+    float coneH = 2.0f;
+    float coneR = 1.0f;
+    const int n = 32;
+    glm::vec3 coneVertices[96] = {};
+    //sides first
+    float pi = 3.14159265;
+    for (int i = 0; i < n; i++) {
+        coneVertices[3 * i] = glm::vec3(0.0, 0.0, coneH);
+        coneVertices[3 * i + 1] = glm::vec3(std::cos(i * pi * 2.0f / n)* coneR, std::sin(i * pi * 2.0f / n)* coneR, 0.0);
+        coneVertices[3 * i + 2] = glm::vec3(std::cos((i + 1) * pi * 2.0 / n )* coneR, std::sin((i + 1) * pi * 2.0 / n)* coneR, 0.0);
+    }
+    printf("%d",GL_MAX_ELEMENTS_VERTICES);
+    unsigned int coneVao;
+    glGenVertexArrays(1, &coneVao);
+
+    glBindVertexArray(coneVao);
+    VertexBuffer cvb(coneVertices, sizeof(coneVertices));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
 
     particleGenerator pgen1;
     glGenVertexArrays(1, &pgen1.vao);
+    pgen1.pgpus = new particle_gpu[MAX_PARTICLE_PER_GENERATOR];
+    pgen1.pcpus = new particle_cpu[MAX_PARTICLE_PER_GENERATOR];
     pgen1.p = glm::vec3(10.0,10.0,10.0);
     pgen1.v = glm::vec3(0.0, -1.0, 0.0);
     pgen1.d = glm::vec3(1.0, 1.0, 1.0);
@@ -195,6 +216,8 @@ int main() {
 
     particleGenerator pgen2;
     glGenVertexArrays(1, &pgen2.vao);
+    pgen2.pgpus = new particle_gpu[MAX_PARTICLE_PER_GENERATOR];
+    pgen2.pcpus = new particle_cpu[MAX_PARTICLE_PER_GENERATOR];
     pgen2.p = glm::vec3(-10.0, -10.0, -10.0);
     pgen2.v = glm::vec3(0.0, 1.0, 0.0);
     pgen2.d = glm::vec3(-1.0, -1.0, -1.0);
@@ -205,11 +228,19 @@ int main() {
     VertexBuffer pgen2vb(&pgen2.pgpus[0], sizeof(particle_gpu));
     particleShaderSetup();
 
+    // add colliders
+
+    collider coll1;
+    coll1.triangles = new triangle[100];
+
+    //trying to render an icosphere
+
 
     Shader primitiveShader("../../../HWs/HW#1/Code/shaders/vertex_shader_prim.glsl", "../../../HWs/HW#1/Code/shaders/fragment_shader_prim.glsl");
     Shader sperspective("../../../HWs/HW#1/Code/shaders/vert.glsl", "../../../HWs/HW#1/Code/shaders/frag.glsl");
     Shader fperspective("../../../HWs/HW#1/Code/shaders/vert_flat.glsl", "../../../HWs/HW#1/Code/shaders/frag_flat.glsl");
     Shader particleShader("../../../HWs/HW2/Code/shaders/vertParticle.glsl", "../../../HWs/HW2/Code/shaders/fragParticle.glsl");
+    Shader coneShader("../../../HWs/HW2/Code/shaders/vertCone.glsl", "../../../HWs/HW2/Code/shaders/fragCone.glsl");
 
     sperspective.use();
 
@@ -220,6 +251,8 @@ int main() {
     glLineWidth(lineSize);
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     int width, height;
     float h = 0.01f;
@@ -236,21 +269,20 @@ int main() {
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    state init;
-
     float timestep = h;
     bool stepSim = false;
     float timeToDraw = 0.0f;
-    glm::vec3 posBuf;
-
+    
     std::chrono::steady_clock::time_point t_sim = std::chrono::steady_clock::now();
 
-    /*
+    
     // Lorenz Params
     float sigma = 10.0f;
     float rho = 28.0f;
     float beta = 8.0f / 3.0f;
-    */
+    float g = 0.0f;
+    float lorenzFac = 0.0f;
+    float velVariance = 0.5f;
     particleShader.use();
 
     while (!glfwWindowShouldClose(window))
@@ -261,7 +293,7 @@ int main() {
         lastFrame = currentFrame;
         processInput(window);
 
-        glClearColor(0.6f, 1.0f, 0.9f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         //start of imgui init stuff
@@ -270,13 +302,13 @@ int main() {
         ImGui::NewFrame();
         
         //end of imgui init stuff
-
+        particleShader.use();
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
         particleShader.setMat4("view", view);
 
         glfwGetWindowSize(window, &width, &height);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.01f, 1000.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.01f, 100000.0f);
         particleShader.setMat4("projection", projection);
         
         glBindVertexArray(pgen1.vao);
@@ -284,44 +316,46 @@ int main() {
 
         glBindVertexArray(pgen2.vao);
         glDrawArrays(GL_POINTS, 0, pgen2.pnum);
-        /*
-        // lorenz drawing 
-        glBindVertexArray(VAO_particles);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_par_pos);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(particles), &particles[0], GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        glDrawArrays(GL_POINTS, 0, 3* particle_num);
 
-        // lorenz path
-        glBindVertexArray(VAO_path);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_path_pos);
-        glBufferData(GL_ARRAY_BUFFER, path_pos.size() * 3 * sizeof(float), glm::value_ptr<float>(path_pos[0]), GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-        glEnableVertexAttribArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_path_norm);
-        glBufferData(GL_ARRAY_BUFFER, path_norm.size() * 3 * sizeof(float), glm::value_ptr<float>(path_norm[0]), GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        glDrawArrays(GL_LINE_STRIP, 0, path_pos.size());
+        coneShader.use();
+        coneShader.setMat4("view", view);
+        coneShader.setMat4("projection", projection);
 
-        */
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, pgen1.p);
+        model = glm::rotate(model, acos(glm::dot(glm::vec3(0.0, 0.0, -1.0), glm::normalize(pgen1.d))), glm::cross(glm::vec3(0.0, 0.0, -1.0), glm::normalize(pgen1.d)));
+        coneShader.setMat4("model", model);
+        glBindVertexArray(coneVao);
+        glDrawArrays(GL_TRIANGLES, 0, 96);
 
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, pgen2.p);
+        model = glm::rotate(model, acos(glm::dot(glm::vec3(0.0, 0.0, -1.0), glm::normalize(pgen2.d))), glm::cross(glm::vec3(0.0, 0.0, -1.0), glm::normalize(pgen2.d)));
+        coneShader.setMat4("model", model);
+        glBindVertexArray(coneVao);
+        glDrawArrays(GL_TRIANGLES, 0, 96);
 
         // all drawings done lets do some imgui stuff
 
-        ImGui::Begin("Object Settings");
+        ImGui::Begin("Particle Generator Settings");
+        ImGui::Text("PG1 # particles: %d", pgen1.pnum);
+        ImGui::DragFloat("PG1 Period", &pgen1.P, 0.001);
+        ImGui::DragFloat3("PG1 Direction", glm::value_ptr(pgen1.d), 0.05);
+        ImGui::DragFloat3("PG1 Velocity", glm::value_ptr(pgen1.v), 0.05);
+        ImGui::Text("PG2 # particles: %d", pgen2.pnum);
+        ImGui::DragFloat("PG2 Period", &pgen2.P, 0.001);
+        ImGui::DragFloat3("PG2 Direction", glm::value_ptr(pgen2.d), 0.05);
+        ImGui::DragFloat3("PG2 Velocity", glm::value_ptr(pgen2.v), 0.05);
+        ImGui::Text("Total particles: %d", pgen1.pnum + pgen2.pnum);
+        ImGui::End();
+
+        ImGui::Begin("Particle Settings");
+        ImGui::DragFloat("Particle Velocity Variance", &velVariance, 0.1);
         ImGui::End();
 
         ImGui::Begin("Render Setting");
         bool sliderPS = ImGui::SliderFloat("Point Size", &pointSize, .01f, 10.0f);
         bool sliderLS = ImGui::SliderFloat("Line Size", &lineSize, .01f, 10.0f);
-        if (ImGui::Button("Flat Shading")) {
-            fperspective.use();
-        }
-        if (ImGui::Button("Smooth Shading")) {
-            sperspective.use();
-        }
         ImGui::End();
 
         ImGui::Begin("Simulation Setting");
@@ -335,30 +369,29 @@ int main() {
         if (ImGui::Button("Reset")) {
             t = 0;
             t_sim = std::chrono::steady_clock::now();
-            /*
-            // Path Clearing and particle generation for lorenz
-            path_pos.clear();
-            path_norm.clear();
-            
-            for (int i = 0; i < particle_num; i++) {
-                particles[i] = glm::vec3(0.0f, 0.0f, 20.0f) + glm::ballRand<float>(20.0f);
-            }
-            path_pos.push_back(particles[0]);
-            path_norm.push_back(glm::vec3(0.0f, 0.0f, 1.0f));
-            */
+            delete pgen1.pgpus;
+            delete pgen2.pgpus;
+            pgen1.pnum = 0;
+            pgen2.pnum = 0;
+            pgen1.pgpus = new particle_gpu[MAX_PARTICLE_PER_GENERATOR];
+            pgen1.pcpus = new particle_cpu[MAX_PARTICLE_PER_GENERATOR];
+
+            pgen2.pgpus = new particle_gpu[MAX_PARTICLE_PER_GENERATOR];
+            pgen2.pcpus = new particle_cpu[MAX_PARTICLE_PER_GENERATOR];
         }
         ImGui::Text("Integration");
         ImGui::SliderFloat("Timestep", &h, .005f, 0.5f);
         ImGui::Text("Lorenz Parameters");
-        /*
+        
         // Lorenz GUI
-        ImGui::InputFloat("Rho", &rho);
-        ImGui::InputFloat("Beta", &beta);
-        ImGui::InputFloat("Sigma", &sigma);
-        */
+        ImGui::DragFloat("Rho", &rho, 0.005f);
+        ImGui::DragFloat("Beta", &beta, 0.005f);
+        ImGui::DragFloat("Sigma", &sigma, 0.005f);
+        ImGui::DragFloat("Lorenz Factor", &lorenzFac, 0.005f);
         ImGui::Text("Initial Conditions");
-        if (ImGui::Button("Randomize")) {
-        }
+        
+        ImGui::Text("World Settings");
+        ImGui::DragFloat("Gravity", &g, 0.005f);
 
         ImGui::End();
 
@@ -372,74 +405,77 @@ int main() {
             pgen2.t += deltaTimeFrame;
             if (pgen1.t > pgen1.P && pgen1.pnum < MAX_PARTICLE_PER_GENERATOR) {
                 pgen1.t = 0.0f;
-                pgen1.pgpus[pgen1.pnum] = {
-                    glm::gaussRand(pgen1.p,glm::vec3(.01,0.11,0.01)),   // position
-                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) }; 
+                glm::vec3 vgen = pgen1.v + pgen1.d;
+                glm::vec3 var = glm::vec3(velVariance, velVariance, velVariance);
+                glm::vec3 vgenc = glm::gaussRand(vgen, var-glm::dot(var,vgen));
                 pgen1.pcpus[pgen1.pnum] = {
-                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(0.5,0.5,0.5)),
+                    vgenc,
                     0.1,
                     120.0,
                     0.1,
                     0.1,
                     0.0
                     };
+                pgen1.pgpus[pgen1.pnum] = {
+                    glm::gaussRand(pgen1.p,glm::vec3(.1,0.1,0.1)),   // position
+                    (1-(glm::length(pgen1.pcpus[pgen1.pnum].v) / 100.0f))*glm::vec3(.0,.0,1.0)+
+                    (glm::length(pgen1.pcpus[pgen1.pnum].v) * glm::vec3(1.0,.0,.0)/100.0f)};
                 pgen1.pnum += 1;
-                glBindVertexArray(pgen1.vao);
-                pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pnum);
-                //curState.p.push_back(&pgen1.pgpus->p[pgen1.pnum]);
-                //curState.v.push_back(&pgen1.pcpus->v[pgen1.pnum]);
             }
-            if (pgen2.t > pgen2.P && pgen1.pnum < MAX_PARTICLE_PER_GENERATOR) {
+
+            if (pgen2.t > pgen2.P && pgen2.pnum < MAX_PARTICLE_PER_GENERATOR) {
                 pgen2.t = 0.0f;
-                pgen2.pgpus[pgen2.pnum] = {
-                    glm::gaussRand(pgen2.p,glm::vec3(.01,0.01,0.01)),   // position
-                    glm::linearRand(glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,1.0,1.0)) };
+                glm::vec3 vgen = pgen2.v + pgen2.d;
+                glm::vec3 var = glm::vec3(velVariance, velVariance, velVariance);
+                glm::vec3 vgenc = glm::gaussRand(vgen, var - glm::dot(var, vgen));
                 pgen2.pcpus[pgen2.pnum] = {
-                    glm::gaussRand(pgen1.v + pgen1.d,glm::vec3(0.5,0.5,0.5)),
+                    vgenc,
                     0.1,
                     120.0,
                     0.1,
                     0.1,
                     0.0
                 };
+                pgen2.pgpus[pgen2.pnum] = {
+                    glm::gaussRand(pgen2.p,glm::vec3(.1,0.1,0.1)),   // position
+                    (1 - (glm::length(pgen2.pcpus[pgen2.pnum].v) / 100.0f))* glm::vec3(.0,.0,1.0) +
+                    (glm::length(pgen2.pcpus[pgen2.pnum].v) * glm::vec3(1.0,.0,.0) / 100.0f) };
                 pgen2.pnum += 1;
-                glBindVertexArray(pgen2.vao);
-                pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pnum);
-                //curState.p.push_back(pgen2.pgpus.back().p);
-                //curState.v.push_back(pgen2.pcpus.back().v);
             }
-            pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pnum);
-            pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pnum);
             //update generator locations
             pgen1.p += pgen1.v * deltaTimeFrame;
             pgen2.p += pgen2.v * deltaTimeFrame;
 
-            state nextState;
             //integration
+            
             for (int i = 0; i < pgen1.pnum; i++) {
-                printf("updating for 1st pgen");
+                glm::vec3 velocity;
+                velocity.x = sigma * (pgen1.pgpus[i].p.y - pgen1.pgpus[i].p.x);
+                velocity.y = pgen1.pgpus[i].p.x * (rho - pgen1.pgpus[i].p.z) - pgen1.pgpus[i].p.y;
+                velocity.z = pgen1.pgpus[i].p.x * pgen1.pgpus[i].p.y - beta * pgen1.pgpus[i].p.z;
                 pgen1.pgpus[i].p += pgen1.pcpus[i].v * deltaTimeFrame;
+                pgen1.pcpus[i].v += g * glm::vec3(0.0,0.0,-1.0) * deltaTimeFrame;
+                pgen1.pcpus[i].v = (1 - lorenzFac*0.01f) * pgen1.pcpus[i].v + lorenzFac*0.01f * velocity;
+                pgen1.pgpus[i].c =
+                    (1 - (glm::length(pgen1.pcpus[i].v) / 100.0f)) * glm::vec3(.0, .0, 1.0) +
+                    (glm::length(pgen1.pcpus[i].v) * glm::vec3(1.0, .0, .0) / 100.0f);
             }
             
             for (int i = 0; i < pgen2.pnum; i++) {
-                printf("updating for 2nd pgen");
+                glm::vec3 velocity;
+                velocity.x = sigma * (pgen2.pgpus[i].p.y - pgen2.pgpus[i].p.x);
+                velocity.y = pgen2.pgpus[i].p.x * (rho - pgen2.pgpus[i].p.z) - pgen2.pgpus[i].p.y;
+                velocity.z = pgen2.pgpus[i].p.x * pgen2.pgpus[i].p.y - beta * pgen2.pgpus[i].p.z;
                 pgen2.pgpus[i].p += pgen2.pcpus[i].v * deltaTimeFrame;
+                pgen2.pcpus[i].v += g * glm::vec3(0.0, 0.0, -1.0) * deltaTimeFrame;
+                pgen2.pcpus[i].v = (1 - lorenzFac*0.01f) * pgen2.pcpus[i].v + lorenzFac * 0.01f * velocity;
+                pgen2.pgpus[i].c =
+                    (1 - (glm::length(pgen2.pcpus[i].v) / 100.0f)) * glm::vec3(.0, .0, 1.0) +
+                    (glm::length(pgen2.pcpus[i].v) * glm::vec3(1.0, .0, .0) / 100.0f);
             }
 
-            /*
-            // Lorenz integration, position based dynamics :D
-            //lets do some lorenz stuff first
-            path_pos.push_back(particles[0]);
-            path_norm.push_back(glm::vec3(0.0f,0.0f,1.0f));
-            
-            for (int i = 0; i < particle_num; i++) {
-                glm::vec3 velocity;
-                velocity.x = sigma * (particles[i].y - particles[i].x);
-                velocity.y = particles[i].x * (rho - particles[i].z) - particles[i].y;
-                velocity.z = particles[i].x * particles[i].y - beta * particles[i].z;
-                particles[i] = particles[i] + 0.1f * deltaTimeFrame * velocity;
-            }
-            */
+            pgen1vb.UpdateData(&pgen1.pgpus[0], sizeof(particle_gpu) * pgen1.pnum);
+            pgen2vb.UpdateData(&pgen2.pgpus[0], sizeof(particle_gpu) * pgen2.pnum);
 
             stepSim = false;
             t += deltaTimeFrame;
@@ -464,6 +500,10 @@ int main() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    delete pgen1.pgpus;
+    delete pgen1.pcpus;
+    delete pgen2.pgpus;
+    delete pgen2.pcpus;
 
     glfwTerminate();
 
@@ -514,6 +554,12 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         front.z = sin(glm::radians(pitch));
         camFront = glm::normalize(front);
 
+    }
+    else {
+        float xpos = static_cast<float>(xposIn);
+        float ypos = static_cast<float>(yposIn);
+        lastX = xpos;
+        lastY = ypos;
     }
 }
 
